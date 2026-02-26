@@ -476,7 +476,7 @@ Add these to your project's CLAUDE.md so Claude maintains the database correctly
 
 ---
 
-## Lessons Learned (100 Sessions)
+## Lessons Learned (100+ Sessions)
 
 1. **The assertion runner is the single most valuable piece.** It turns "Claude remembers" into "Claude proves." Regressions caught at session start save hours of debugging.
 
