@@ -2,7 +2,7 @@
 
 **A pattern for giving Claude Code persistent, version-controlled, self-auditing project memory using an append-only SQLite database.**
 
-> This pattern was developed across 98+ sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
+> This pattern was developed across 100+ sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
 
 ---
 
@@ -25,7 +25,7 @@ project/
   CLAUDE.md                    # Rules, patterns, procedures (HOW to work)
   memory/MEMORY.md             # Current state, recent sessions (WHAT happened)
   tools/knowledge-db/
-    db.py                      # Append-only SQLite API (~400 lines)
+    db.py                      # Append-only SQLite API (~800 lines)
     knowledge.db               # The database (auto-created)
     seed.py                    # Initial data loader
     assertions.py              # Machine-verifiable checks (~280 lines)
@@ -68,15 +68,20 @@ Create `tools/knowledge-db/db.py`. The core schema has 5 tables:
 -- Every table uses the same versioning pattern:
 CREATE TABLE specifications (
     rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-    id TEXT NOT NULL,
+    id TEXT NOT NULL,              -- e.g. "245" or "245.1" for sub-specs
     version INTEGER NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL,        -- specified | implemented | verified | retired
-    assertions TEXT,             -- JSON array of machine-verifiable checks
-    changed_by TEXT NOT NULL,    -- 'claude' or 'seed'
-    changed_at TEXT NOT NULL,    -- ISO 8601 UTC
-    change_reason TEXT NOT NULL, -- Human-readable explanation
+    priority TEXT,                 -- e.g. "P0", "P1", "P2"
+    scope TEXT,                    -- grouping / module scope
+    section TEXT,                  -- logical section within the project
+    handle TEXT,                   -- short mnemonic (e.g. "max-turns-align")
+    tags TEXT,                     -- JSON array of tags for filtering
+    status TEXT NOT NULL,          -- specified | implemented | verified | retired
+    assertions TEXT,               -- JSON array of machine-verifiable checks
+    changed_by TEXT NOT NULL,      -- 'claude' or 'seed'
+    changed_at TEXT NOT NULL,      -- ISO 8601 UTC
+    change_reason TEXT NOT NULL,   -- Human-readable explanation
     UNIQUE(id, version)
 );
 
@@ -89,11 +94,27 @@ INNER JOIN (
 ) m ON s.id = m.id AND s.version = m.max_v;
 ```
 
+**Numbering:** Spec IDs support decimal notation for sub-specs (e.g., `245`, `245.1`, `245.1.3`). This allows hierarchical decomposition without losing traceability.
+
+**Indexes:** Add indexes on frequently-queried columns for performance as the database grows:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_specs_id ON specifications(id);
+CREATE INDEX IF NOT EXISTS idx_specs_status ON specifications(status);
+CREATE INDEX IF NOT EXISTS idx_specs_version ON specifications(id, version);
+CREATE INDEX IF NOT EXISTS idx_specs_changed_at ON specifications(changed_at);
+CREATE INDEX IF NOT EXISTS idx_assertion_runs_spec ON assertion_runs(spec_id);
+CREATE INDEX IF NOT EXISTS idx_test_procs_id ON test_procedures(id);
+CREATE INDEX IF NOT EXISTS idx_session_prompts_session ON session_prompts(session_id);
+```
+
 ### Python API Pattern
 
 ```python
 class KnowledgeDB:
     """Append-only knowledge database. Claude is the sole writer."""
+
+    _UNSET = object()  # Sentinel: distinguishes "not provided" from "set to None"
 
     def __init__(self, db_path=None):
         self.db_path = db_path or Path(__file__).parent / "knowledge.db"
@@ -115,22 +136,44 @@ class KnowledgeDB:
         return dict(row) if row else None
 
     def update_spec(self, spec_id, changed_by, change_reason, **kwargs):
-        """Create new version with changes. Append-only — never modifies existing rows."""
+        """Create new version with changes. Append-only — never modifies existing rows.
+
+        Uses _UNSET sentinel to distinguish "not provided" from "explicitly set to None":
+            update_spec("245", ..., description=KnowledgeDB._UNSET)  # keeps current
+            update_spec("245", ..., description=None)                # sets to NULL
+        """
         current = self.get_spec(spec_id)
         if not current:
             raise ValueError(f"Spec {spec_id} not found")
         next_version = current["version"] + 1
-        # Merge current values with changes
-        merged = {k: kwargs.get(k, current[k]) for k in current if k != "rowid"}
+        # Merge: use new value if provided, else keep current
+        columns = [k for k in current if k != "rowid"]
+        merged = {}
+        for col in columns:
+            if col in kwargs and kwargs[col] is not self._UNSET:
+                merged[col] = kwargs[col]
+            else:
+                merged[col] = current[col]
         merged["version"] = next_version
         merged["changed_by"] = changed_by
         merged["changed_at"] = datetime.now(timezone.utc).isoformat()
         merged["change_reason"] = change_reason
-        # Serialize assertions if provided as Python object
-        if "assertions" in kwargs and not isinstance(kwargs["assertions"], str):
-            merged["assertions"] = json.dumps(kwargs["assertions"])
-        self._get_conn().execute("INSERT INTO specifications (...) VALUES (...)", ...)
+        # Serialize assertions if provided as Python object (avoid double-encoding)
+        if "assertions" in kwargs and not isinstance(merged["assertions"], str):
+            merged["assertions"] = json.dumps(merged["assertions"])
+        # Insert new version row
+        cols = ", ".join(columns)
+        placeholders = ", ".join(["?"] * len(columns))
+        values = [merged[c] for c in columns]
+        self._get_conn().execute(
+            f"INSERT INTO specifications ({cols}) VALUES ({placeholders})", values
+        )
         self._get_conn().commit()
+
+    def export_json(self, output_path=None):
+        """Full logical backup as JSON. Safe to run anytime."""
+        # Exports all tables for archival / disaster recovery
+        ...
 
     def close(self):
         if self._conn:
@@ -247,6 +290,25 @@ for failure in failures:
         # Expected — not yet implemented
         expected.append(failure)
 ```
+
+### UserPromptSubmit Hook — Session Scheduler
+
+The scheduler hook (`.claude/hooks/scheduler.py`) processes pre-planned prompts from `.claude/SCHEDULE.md`. This enables deferred automation — Claude can schedule future tasks during a session that execute in subsequent sessions.
+
+```markdown
+<!-- .claude/SCHEDULE.md format -->
+## Group: post-deploy-checks
+trigger: always
+
+Update staging deployment status in MEMORY.md after confirming revision is active.
+```
+
+**Trigger types:**
+- `always` — inject with the next user prompt
+- `session_end` — inject when wrap-up keywords are detected ("wrap up", "done", "end session")
+- `after:N` — inject after N user prompts have been processed
+
+The scheduler uses file locking to prevent race conditions when multiple hooks fire concurrently.
 
 ### Session Handoff Prompts
 
@@ -414,7 +476,7 @@ Add these to your project's CLAUDE.md so Claude maintains the database correctly
 
 ---
 
-## Lessons Learned (98 Sessions)
+## Lessons Learned (100 Sessions)
 
 1. **The assertion runner is the single most valuable piece.** It turns "Claude remembers" into "Claude proves." Regressions caught at session start save hours of debugging.
 
@@ -432,6 +494,10 @@ Add these to your project's CLAUDE.md so Claude maintains the database correctly
 
 8. **The read-only web UI builds trust.** The owner sees everything Claude knows without needing to read code or run scripts. This transparency is crucial for long-running commercial projects.
 
+9. **Use a sentinel for "not provided" vs "set to None."** A bare `None` check cannot distinguish "caller omitted this argument" from "caller explicitly set it to None." A module-level `_UNSET = object()` sentinel resolves the ambiguity in merge logic.
+
+10. **Index early.** As the database grows past ~100 specs, queries on `status`, `id`, and `changed_at` benefit noticeably from indexes. Add them in the schema creation, not as an afterthought.
+
 ---
 
 ## Quick Start Checklist
@@ -441,7 +507,8 @@ Add these to your project's CLAUDE.md so Claude maintains the database correctly
 - [ ] Create `tools/knowledge-db/seed.py` to bootstrap from existing artifacts
 - [ ] Create `tools/knowledge-db/app.py` for read-only web UI
 - [ ] Create `.claude/hooks/assertion-check.py` (SessionStart hook)
-- [ ] Register hook in `.claude/settings.local.json`
+- [ ] Optionally create `.claude/hooks/scheduler.py` + `.claude/SCHEDULE.md` (session scheduler)
+- [ ] Register hooks in `.claude/settings.local.json`
 - [ ] Add Knowledge Database section to CLAUDE.md
 - [ ] Add session handoff instructions to CLAUDE.md
 - [ ] Run `python tools/knowledge-db/seed.py` to populate initial data
@@ -449,4 +516,6 @@ Add these to your project's CLAUDE.md so Claude maintains the database correctly
 
 ---
 
-*This pattern was developed on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, session handoff, audit cadence) are universal.*
+*This pattern was developed on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, session handoff, audit cadence) are universal.*
+
+*© 2026 Remaker Digital, a DBA of VanDusen & Palmeter, LLC. All rights reserved.*
