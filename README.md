@@ -24,3 +24,5 @@ Claude can store references and brief descriptions however and use MEMORY.md as 
 The problem with this file-based approach is that Claude makes mistakes (recall misses) and it makes assumptions about intention and direction whenever the instructions get pushed out of the context window. Claude can silently "drift", dropping memories and skipping procedures. The only way that Claude can see that drift and correct for it is if Claude has a solution for change control and history of knowledge and plans, with descriptive metadata. 
 
 In this setup, Claude uses CLAUDE.md+MEMORY.md to store the bootstrap knowledge and procedures required to use the database correctly. Once this system warms up it is self-optimizing and runs with no new load on Claude: saves tokens, reduces drift, suppresses hallucinations.
+
+The entire implementation is described in MEMBASE-4-CLAUDE.md and all you need to do is download it and ask Claude to read it.
