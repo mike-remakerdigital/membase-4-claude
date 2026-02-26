@@ -79,7 +79,7 @@ This pattern was developed incrementally on the [Agent Red Customer Experience](
 
 The database is used exclusively by Claude and contains only what Claude needs to remember. The human observes through a lightweight read-only UI (sort, filter, search, tree-view, change history) that deliberately excludes write operations. When the human spots a discrepancy, they tell Claude, and Claude creates a corrected version.
 
-The current database is ~500 KB with 161 specifications, 70 machine-verifiable assertions (all passing), 11 test procedures, and 4 operational procedures.
+The current database is ~630 KB with 163 specifications, 70 machine-verifiable assertions (all passing), 11 test procedures, and 4 operational procedures.
 
 ---
 
