@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Assertions{% endblock %}
+
+{% block content %}
+<h1>Assertion Results</h1>
+
+{% if runs %}
+{% set passed = runs | selectattr('overall_passed') | list | length %}
+{% set failed = runs | length - passed %}
+<div class="summary-bar">
+    <span class="pass">{{ passed }} passed</span>
+    <span class="fail">{{ failed }} failed</span>
+    <span class="muted">{{ runs | length }} total</span>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Status</th>
+            <th>Spec</th>
+            <th>Title</th>
+            <th>Run At</th>
+            <th>Triggered By</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for run in runs %}
+        <tr class="{{ pass_fail_class(run.overall_passed) }}">
+            <td>{{ 'PASS' if run.overall_passed else 'FAIL' }}</td>
+            <td><a href="/specs/{{ run.spec_id }}">{{ run.spec_id }}</a></td>
+            <td>{{ run.spec_title }}</td>
+            <td>{{ run.run_at[:19] }}</td>
+            <td>{{ run.triggered_by }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No assertion runs yet. Run <code>python reference/assertions.py</code> to generate results.</p>
+{% endif %}
+{% endblock %}

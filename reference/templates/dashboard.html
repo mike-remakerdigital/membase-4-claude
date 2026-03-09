@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Knowledge Database</h1>
+
+<div class="card-grid">
+    <div class="card">
+        <h3>Specifications</h3>
+        <div class="big-number">{{ summary.spec_total }}</div>
+        <div class="card-detail">
+            <span class="status-verified">{{ summary.spec_verified }} verified</span>
+            <span class="status-implemented">{{ summary.spec_implemented }} implemented</span>
+            <span class="status-specified">{{ summary.spec_specified }} specified</span>
+            <span class="status-retired">{{ summary.spec_retired }} retired</span>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Assertions</h3>
+        <div class="big-number">{{ summary.assertions_total }}</div>
+        <p>specs with assertions</p>
+        {% if summary.spec_total > 0 %}
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ (summary.assertions_total / summary.spec_total * 100) | round(1) }}%"></div>
+        </div>
+        <p class="muted">{{ (summary.assertions_total / summary.spec_total * 100) | round(1) }}% coverage</p>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>Procedures</h3>
+        <div class="big-number">{{ summary.op_procedure_total }}</div>
+        <p>operational procedures</p>
+    </div>
+    <div class="card">
+        <h3>Handoffs</h3>
+        <div class="big-number">{{ summary.session_prompt_pending }}</div>
+        <p>pending session prompts</p>
+    </div>
+</div>
+
+<h2>Recent Changes</h2>
+{% if recent %}
+<table>
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Table</th>
+            <th>ID</th>
+            <th>Version</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for change in recent %}
+        <tr>
+            <td>{{ change.changed_at[:19] }}</td>
+            <td>{{ change.table_name }}</td>
+            <td>
+                {% if change.table_name == 'specifications' %}
+                <a href="/specs/{{ change.record_id }}">{{ change.record_id }}</a>
+                {% else %}
+                {{ change.record_id }}
+                {% endif %}
+            </td>
+            <td>v{{ change.version }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No changes recorded yet. Run <code>python reference/seed.py</code> to populate.</p>
+{% endif %}
+{% endblock %}

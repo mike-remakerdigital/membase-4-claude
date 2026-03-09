@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ spec.id }}{% endblock %}
+
+{% block content %}
+<p><a href="/specs">&larr; All Specifications</a></p>
+
+<h1>{{ spec.id }}: {{ spec.title }}</h1>
+
+<div class="meta-bar">
+    <span class="{{ status_class(spec.status) }}">{{ spec.status }}</span>
+    <span>Type: {{ spec.type }}</span>
+    <span>Version: v{{ spec.version }}</span>
+    <span>Updated: {{ spec.changed_at[:19] }}</span>
+</div>
+
+<div class="card">
+    <h3>Description</h3>
+    <p>{{ spec.description }}</p>
+</div>
+
+{% if spec._assertions_parsed %}
+<div class="card">
+    <h3>Assertions ({{ spec._assertions_parsed | length }})</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Pattern / File</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in spec._assertions_parsed %}
+            <tr>
+                <td><code>{{ a.type }}</code></td>
+                <td>{{ a.description or '' }}</td>
+                <td>
+                    <code>{{ a.pattern }}</code>
+                    {% if a.file %} in <code>{{ a.file }}</code>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if assertion_run %}
+<div class="card">
+    <h3>Latest Assertion Run</h3>
+    <div class="meta-bar">
+        <span class="{{ pass_fail_class(assertion_run.overall_passed) }}">
+            {{ 'PASSED' if assertion_run.overall_passed else 'FAILED' }}
+        </span>
+        <span>{{ assertion_run.run_at[:19] }}</span>
+        <span>Triggered by: {{ assertion_run.triggered_by }}</span>
+    </div>
+    {% if assertion_run._results_parsed %}
+    <table>
+        <thead>
+            <tr><th>Status</th><th>Description</th><th>Detail</th></tr>
+        </thead>
+        <tbody>
+            {% for r in assertion_run._results_parsed %}
+            <tr class="{{ pass_fail_class(r.passed) }}">
+                <td>{{ 'PASS' if r.passed else 'FAIL' }}</td>
+                <td>{{ r.description }}</td>
+                <td>{{ r.detail }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if history and history | length > 1 %}
+<div class="card">
+    <h3>Version History</h3>
+    <table>
+        <thead>
+            <tr><th>Version</th><th>Status</th><th>Updated</th></tr>
+        </thead>
+        <tbody>
+            {% for h in history %}
+            <tr>
+                <td>v{{ h.version }}</td>
+                <td><span class="{{ status_class(h.status) }}">{{ h.status }}</span></td>
+                <td>{{ h.changed_at[:19] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

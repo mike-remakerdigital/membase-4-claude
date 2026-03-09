@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ proc.id }}{% endblock %}
+
+{% block content %}
+<p><a href="/ops">&larr; All Procedures</a></p>
+
+<h1>{{ proc.id }}: {{ proc.title }}</h1>
+
+<div class="meta-bar">
+    <span>Scope: {{ proc.scope or 'N/A' }}</span>
+    <span>Trigger: {{ proc.trigger or 'N/A' }}</span>
+    <span>Version: v{{ proc.version }}</span>
+</div>
+
+<div class="card">
+    <h3>Description</h3>
+    <p>{{ proc.description }}</p>
+</div>
+
+{% if proc._steps_parsed %}
+<div class="card">
+    <h3>Steps</h3>
+    <ol>
+        {% for step in proc._steps_parsed %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ol>
+</div>
+{% endif %}
+{% endblock %}

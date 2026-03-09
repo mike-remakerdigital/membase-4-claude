@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+
+{% block content %}
+<h1>Change History</h1>
+
+{% if changes %}
+<table>
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Table</th>
+            <th>ID</th>
+            <th>Version</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for change in changes %}
+        <tr>
+            <td>{{ change.changed_at[:19] }}</td>
+            <td>{{ change.table_name }}</td>
+            <td>
+                {% if change.table_name == 'specifications' %}
+                <a href="/specs/{{ change.record_id }}">{{ change.record_id }}</a>
+                {% elif change.table_name == 'operational_procedures' %}
+                <a href="/ops/{{ change.record_id }}">{{ change.record_id }}</a>
+                {% else %}
+                {{ change.record_id }}
+                {% endif %}
+            </td>
+            <td>v{{ change.version }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">No history recorded yet.</p>
+{% endif %}
+{% endblock %}

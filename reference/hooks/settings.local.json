@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/.claude/settings.schema.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "python reference/hooks/assertion-check.py",
+        "timeout": 30000
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "python reference/hooks/spec-classifier.py",
+        "timeout": 5000
+      }
+    ]
+  }
+}

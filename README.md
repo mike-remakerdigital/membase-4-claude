@@ -44,11 +44,24 @@ Read MEMBASE-4-CLAUDE.md and set up the Membase knowledge database for this proj
 
 That's it. The file contains the complete implementation pattern — schema, API, assertion runner, session hooks, governance principles, and web UI — with enough detail for Claude to reproduce it and adapt it to your project.
 
+## Quick Start
+
+```bash
+# Seed example data, run assertions, start web UI
+python reference/seed.py
+python reference/assertions.py
+pip install flask && python reference/app.py
+```
+
+See [`QUICKSTART.md`](QUICKSTART.md) for the full walkthrough including hook configuration and CLAUDE.md integration.
+
 ## What's in This Repo
 
 | File | Purpose |
 |------|---------|
 | [`MEMBASE-4-CLAUDE.md`](MEMBASE-4-CLAUDE.md) | Complete implementation guide (the pattern document Claude reads) |
+| [`QUICKSTART.md`](QUICKSTART.md) | 5-minute bootstrap guide |
+| [`reference/`](reference/) | Runnable reference implementation — 4 core tables, assertions, hooks, web UI |
 | [`README.md`](README.md) | This file — context and motivation |
 | [`LICENSE`](LICENSE) | MIT License |
 
