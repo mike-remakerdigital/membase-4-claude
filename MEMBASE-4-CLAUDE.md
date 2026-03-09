@@ -2,7 +2,7 @@
 
 **A pattern for giving Claude Code persistent, version-controlled, self-auditing project memory using an append-only SQLite database.**
 
-> This pattern was developed across 133 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 8 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
+> This pattern was developed across 158 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
 
 ---
 
@@ -49,7 +49,7 @@ project/
 
 ## Step 1: Artifact System Design
 
-The database stores **8 managed artifact types** and **2 supporting record types**. Start with the core 3 (specifications, operational procedures, assertion runs) and add more as your project grows.
+The database stores **9 managed artifact types** and **2 supporting record types**. Start with the core 3 (specifications, operational procedures, assertion runs) and add more as your project grows.
 
 ### Core Tables (Start Here)
 
@@ -111,7 +111,7 @@ INNER JOIN (
 | Type | Purpose |
 |------|---------|
 | `requirement` | Business requirement — "would a different choice affect the customer or the business?" |
-| `governance` | Process rules — GOV-01 through GOV-17 (how the human-AI team works) |
+| `governance` | Process rules — GOV-01 through GOV-18 (how the human-AI team works) |
 | `protected_behavior` | Machine-verifiable assertions that must always pass |
 
 #### Tests Table (Spec-Linked)
@@ -402,7 +402,7 @@ Without assertions, Claude "believes" specs are implemented based on session mem
 
 ## Step 3: Governance Principles
 
-These governance principles evolved over 133 sessions. They are not mandatory — adopt the ones that fit your project.
+These governance principles evolved over 158 sessions. They are not mandatory — adopt the ones that fit your project.
 
 ### GOV-01: Specs Are the Negotiation Artifact
 
@@ -472,6 +472,10 @@ No deployment to any environment without explicit owner approval. Claude prepare
 
 Prioritize quality (correctness, completeness, absence of defects) over effort or speed. Software engineering excellence is the primary objective.
 
+### GOV-18: Assertion Quality Standard
+
+Machine-verifiable assertions must target specific, meaningful code identifiers — not generic patterns that match broadly. An assertion that matches "MUST" in any file is noise; an assertion that matches "ActivationService" in `activation_service.py` is signal. Batch assertion generation scripts must use semantic categorization (what does this spec describe?) rather than keyword heuristics (does the title contain this word?).
+
 ### The Specification Litmus Test
 
 "Would a different choice affect the customer or the business?" If yes, it is a specification. If no, it is an implementation detail.
@@ -506,9 +510,12 @@ Register in `.claude/settings.local.json`:
 }
 ```
 
-The hook does two things:
+The hook does five things:
 1. **Runs all assertions** and classifies failures as either "regressions" (implemented/verified specs now failing) or "expected" (specified but not yet implemented).
-2. **Reads the session handoff prompt** stored by the previous session, so Claude automatically knows what to work on next.
+2. **Checks untested work items** (GOV-12 drift detection) — flags open work items missing linked tests.
+3. **Displays the quality dashboard** — 4 metrics: assertion coverage (target ≥60%), test traceability (target >80%), defect velocity (net positive = good), defect escape rate (target: 0 production incidents).
+4. **Prunes old assertion runs** — keeps only the latest 5 runs per spec to prevent unbounded table growth (reduced 229K → 9K rows, 93 → 18 MB database size).
+5. **Reads the session handoff prompt** stored by the previous session, so Claude automatically knows what to work on next.
 
 ```python
 # Classification logic in the hook:
@@ -711,7 +718,7 @@ before new work.
 
 ---
 
-## Lessons Learned (133 Sessions)
+## Lessons Learned (158 Sessions)
 
 1. **The assertion runner is the single most valuable piece.** It turns "Claude remembers" into "Claude proves." Regressions caught at session start save hours of debugging.
 
@@ -761,7 +768,17 @@ before new work.
 
 24. **Backlog snapshots are workflow gates.** The KB enforces `created → tested → backlogged → implementing → resolved` transitions. Advancing to `implementing` requires the work item to exist in a backlog snapshot. This prevents bypassing prioritization — you cannot implement work that was never formally planned.
 
-25. **Governance principles compound and accelerate.** GOV-01 through GOV-17 were discovered over 133 sessions. Early principles (GOV-01–06) took many sessions to crystallize. Later ones (GOV-13–17) emerged within a few sessions because the pattern was established. Expect governance discovery to accelerate as the system matures.
+25. **Governance principles compound and accelerate.** GOV-01 through GOV-18 were discovered over 158 sessions. Early principles (GOV-01–06) took many sessions to crystallize. Later ones (GOV-13–18) emerged within a few sessions because the pattern was established. Expect governance discovery to accelerate as the system matures.
+
+26. **Batch assertion generation requires semantic categorization.** A 3-tier strategy (grep in known file → glob for file existence → keyword-to-file mapping) achieved 99.5% assertion coverage across 1,884 specs. But keyword heuristics (matching "MUST" in titles) create systematic mis-mappings. Categorizing specs by their subject (what does this spec describe?) is the only reliable approach. GOV-18 codifies this.
+
+27. **Quality dashboards make metrics actionable.** Displaying 4 key metrics (assertion coverage, test traceability, defect velocity, defect escape rate) at every session start changed behavior immediately. When a metric is red, it becomes the first priority. Without visibility, quality degradation is silent and gradual.
+
+28. **Testable element inventory closes coverage gaps.** Inventorying every UI component, form field, and interactive element (520 across 12 admin pages) revealed that "we have tests" is different from "everything is tested." The 14-dimension taxonomy (A–N: visibility, content, interaction, etc.) ensures tests cover what users actually experience, not just what developers thought to test.
+
+29. **Assertion pruning is essential for long-running projects.** Without pruning, the assertion_runs table grew to 229K rows and 93 MB (larger than all other data combined). Keeping only the latest 5 runs per spec reduced this to 9.3K rows and 18 MB — a 96% reduction with no loss of diagnostic value. Automate this in the SessionStart hook.
+
+30. **Batch description enrichment using source file context.** Specs linked to source files (via assertions) can generate meaningful descriptions automatically: restate the title as a requirement, add context from the assertion's source file path. This enriched 885 NULL-description specs in one pass, achieving 92% description coverage.
 
 ---
 
@@ -781,6 +798,7 @@ These terms have specific meanings in the Membase pattern. Each corresponds to a
 | **Operational Procedure** | `operational_procedures` | A step-by-step repeatable process: deployment, verification, audit, recovery. Versioned like all artifacts. |
 | **Document** | `documents` | General-purpose project knowledge under change control. Replaces drifting markdown topic files. Anything that is "project knowledge" but not a specification, test, or procedure belongs here. |
 | **Environment Config** | `environment_config` | Environment-specific values (URLs, connection strings, thresholds) under change control. Tracks what each environment is configured to use. |
+| **Testable Element** | `testable_elements` | A UI component, form field, or interactive element inventoried for systematic test coverage. Each element has a unique ID (e.g., EL-dashboard-001), maps to a page/subsystem, and is categorized using a 14-dimension taxonomy (A: visibility, B: content, C: interaction, etc.). Enables "everything is tested" rather than "tests exist." |
 
 ### Supporting Records
 
@@ -796,7 +814,9 @@ These terms have specific meanings in the Membase pattern. Each corresponds to a
 | **Assertion** | A machine-verifiable check attached to a specification. Three types: `grep` (pattern must exist in file), `grep_absent` (pattern must NOT exist in file), `glob` (file path must exist). Stored as JSON in the specification's `assertions` column. Runs automatically at session start via the SessionStart hook. |
 | **Phantom Artifact** | A concept referenced as if it were a tracked entity, but with no backing storage, change control, or queryable history. Example: saying "the backlog contains WI-42" when no backlog table exists. The anti-pattern this entire system was designed to eliminate. |
 | **Orchestrating Artifact** | An artifact that composes other artifacts by reference (ID only), never by content duplication. Test plans reference test IDs; backlog snapshots reference work item IDs. Each referenced artifact is independently managed and versioned. Prevents content duplication and the drift that accompanies it. |
-| **Governance Principle** | A process rule (GOV-\*) governing how the human-AI team works together. Discovered through real project failures, not designed upfront. Currently 19 principles: 17 numbered rules (GOV-01 through GOV-17) plus 2 architectural principles (SPEC-1493: Artifact Inventory, SPEC-1499: Orchestrating Artifact). |
+| **Governance Principle** | A process rule (GOV-\*) governing how the human-AI team works together. Discovered through real project failures, not designed upfront. Currently 20 principles: 18 numbered rules (GOV-01 through GOV-18) plus 2 architectural principles (SPEC-1493: Artifact Inventory, SPEC-1499: Orchestrating Artifact). |
+| **Testable Element** | A UI component, form field, or interactive element inventoried for systematic test coverage tracking. Stored in the `testable_elements` table with a 14-dimension taxonomy (A–N: visibility, content, interaction, state, etc.). Each element has a unique ID (e.g., EL-dashboard-001) and maps to specific tests. |
+| **Quality Dashboard** | A 4-metric display rendered at every session start by the SessionStart hook. Metrics: assertion coverage (target ≥60%), test traceability (target >80%), defect velocity (net resolved vs open), defect escape rate (production incidents). Uses emoji indicators and box-drawing characters for visual clarity. |
 | **Protected Behavior** | A specification with `type = 'protected_behavior'` carrying machine-verifiable assertions that must always pass. Checked in build gates before every deployment. |
 | **Append-Only Change Control** | The versioning discipline: no UPDATE in place, no DELETE. Every mutation creates a new versioned row with mandatory `changed_by`, `changed_at`, and `change_reason`. Current state = latest version per ID (via SQL views). Full audit trail preserved indefinitely. |
 | **Session Handoff** | The mechanism by which one session stores context for the next. The previous session calls `db.insert_session_prompt()` with a structured prompt; the SessionStart hook retrieves and displays it, then marks it consumed. Eliminates the human needing to craft "Continue work on X..." prompts. |
@@ -826,33 +846,42 @@ Membase was not designed upfront — it evolved through real project needs. Each
 | S131 | UI changes break tests silently; tests fixed without approval; deploys without approval | **GOV-14–16** — UI element test sync, test fix approval gate, deployment approval gate |
 | S131 | Manual multi-step deployment process is error-prone | **Automated deploy pipeline** — single-invocation 15-phase staging / 12-phase production pipeline |
 | S133 | Mocked/inspection tests give false confidence; can't verify production behavior | **SPEC-1649** — Master Test Plan converted to live-only external interfaces (13 active phases, 3 removed) |
+| S135 | No systematic inventory of what should be tested in the UI | **SPEC-1652/1653** — Testable element inventory (520 elements), 4-phase quality cycle, dimensional taxonomy (14 categories A–N) |
+| S135–S144 | Shallow live E2E tests miss real bugs | **936 live E2E tests** across 3 admin consoles (Standalone 576, Provider 264, Shopify 96), all exercising real staging APIs |
+| S145 | No visibility into quality metrics at session start | **Quality Dashboard** (SPEC-1659/1660) — 4 metrics at every session start: assertion coverage, test traceability, defect velocity, defect escape rate |
+| S146–S150 | 87% of specs lack machine-verifiable assertions | **Batch assertion generation** — 3-tier strategy (grep in known file, glob, keyword mapping). Coverage 12.9% → 99.5%. |
+| S153 | Specs classified as "not yet implemented" that are actually implemented | **Verification mega-session** — 400 spec promotions, 148 retirements, GOV-18 (Assertion Quality Standard) |
+| S157 | SPA console shares auth layer with tenant endpoints | **SPEC-1667/1668** — Complete SPA platform admin auth isolation with dedicated Cosmos collection and key prefix |
+| S158 | assertion_runs table grows unboundedly (~230K rows, ~93 MB) | **Assertion pruning** — keeps latest 5 runs per spec, automated in SessionStart hook. DB 93 → 18 MB. |
 
-### Current State (Session 133)
+### Current State (Session 158)
 
 | Category | Metric | Count |
 |----------|--------|-------|
-| **Specifications** | Total | 1,857 |
-| | Verified | 314 |
-| | Implemented | 805 |
-| | Specified (not yet implemented) | 734 |
-| | Governance (GOV-01 through GOV-17) | 19 |
-| **Tests** | Test artifacts (spec-linked) | 3,016 |
-| | In active test plan phases | 701 |
-| | In removed phases (retained, append-only) | 2,315 |
-| | Test-to-spec coverage mappings | 1,988 |
-| | Automated tests passing | 6,061 |
-| **Work Items** | Total | 1,026 |
-| | Resolved | 929 |
-| | Open | 97 |
-| **Assertions** | Specs with machine-verifiable assertions | 231 |
-| | Total assertion run records | 40,791 |
+| **Specifications** | Total | 1,884 |
+| | Verified | 313 |
+| | Implemented | 1,350 |
+| | Specified (not yet implemented) | 61 |
+| | Retired | 159 |
+| | Governance (GOV-01 through GOV-18) | 20 |
+| **Tests** | Test artifacts (spec-linked) | 8,888 |
+| | Test-to-spec coverage mappings | 2,278 |
+| | Automated tests passing | 5,984 |
+| | Live E2E tests (3 admin consoles) | 936 |
+| **Work Items** | Total | 1,126 |
+| | Resolved/closed | 1,115 |
+| | Open | 11 |
+| **Assertions** | Specs with machine-verifiable assertions | 1,874 (99.5% coverage) |
+| | Assertion run records (pruned to latest 5/spec) | 9,370 |
 | **Test Plan** | Active phases (live-only, SPEC-1649) | 13 |
 | | Removed phases (mocked/inspection) | 3 |
-| **Knowledge** | Documents under change control | 138 |
+| **Quality** | Testable elements inventoried | 520 |
+| | Quality dashboard metrics | 4 (all green) |
+| **Knowledge** | Documents under change control | 145 |
 | | Operational procedures | 13 |
-| | Governance principles | 19 (17 numbered + 2 architectural) |
-| **Database** | Versioned artifact rows | 9,126 |
-| | Database size | 29.2 MB |
+| | Governance principles | 20 (18 numbered + 2 architectural) |
+| **Database** | Versioned artifact rows | 21,717 |
+| | Database size | 18.5 MB (pruned from 93 MB peak) |
 | | Data loss incidents | 0 |
 
 ### What the System Catches
@@ -868,6 +897,8 @@ The following failure modes are detected automatically, without human interventi
 - **Premature implementation** — GOV-09 hook detects spec language and enforces spec-first workflow; GOV-12 stage gates prevent implementation without tests
 - **False test confidence** — SPEC-1649 mandates live-only external interface testing; mocked tests that pass locally but miss production bugs are excluded from the test plan
 - **Unauthorized changes** — GOV-15 requires owner approval before fixing failed tests (could be a test bug or product bug); GOV-16 requires owner approval before any deployment
+- **Quality degradation** — the quality dashboard displays 4 metrics at every session start; red indicators become the first priority before new work begins
+- **Weak assertions** — GOV-18 enforces assertion quality: assertions must target specific code identifiers, not generic patterns that match broadly
 
 ### What the System Does Not Measure
 
@@ -888,10 +919,12 @@ Honesty about limitations: Membase does not track session duration, so there are
 - [ ] Run `python tools/knowledge-db/seed.py` to populate initial data
 - [ ] Verify assertions run at session start
 - [ ] Optionally create `.claude/hooks/scheduler.py` + `.claude/SCHEDULE.md` (session scheduler)
-- [ ] Add extended tables (tests, test_plans, work_items, documents) when your project grows
+- [ ] Add extended tables (tests, test_plans, work_items, documents, testable_elements) when your project grows
+- [ ] Add quality dashboard metrics to the SessionStart hook (assertion coverage, test traceability, defect velocity, escape rate)
+- [ ] Add assertion run pruning to the SessionStart hook (keep latest N per spec to prevent unbounded growth)
 
 ---
 
-*This pattern was developed across 133 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, governance discipline, session handoff, audit cadence) are universal.*
+*This pattern was developed across 158 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence) are universal.*
 
 *© 2026 Remaker Digital, a DBA of VanDusen & Palmeter, LLC. All rights reserved.*
