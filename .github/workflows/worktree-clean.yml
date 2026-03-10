@@ -1,0 +1,28 @@
+name: Worktree Clean
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify-clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run tests
+        run: python -m unittest reference.test_reference
+
+      - name: Ensure worktree clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Worktree is dirty after tests:"
+            git status --porcelain
+            exit 1
+          fi
