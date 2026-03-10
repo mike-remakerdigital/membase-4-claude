@@ -57,6 +57,14 @@ def _read_file_safe(file_path: Path) -> str | None:
 _VALID_ASSERTION_TYPES = {"grep", "glob", "grep_absent"}
 
 
+def _regex_match_count(pattern: str, content: str) -> int:
+    """Return regex match count, surfacing invalid patterns as ValueError."""
+    try:
+        return len(re.findall(pattern, content))
+    except re.error as exc:
+        raise ValueError(f"Invalid regex /{pattern}/: {exc}") from exc
+
+
 def run_single_assertion(assertion: dict[str, Any]) -> dict[str, Any]:
     """Execute one assertion definition and return the result.
 
@@ -111,11 +119,15 @@ def run_single_assertion(assertion: dict[str, Any]) -> dict[str, Any]:
 
         min_count = assertion.get("min_count", 1)
         total_matches = 0
-        for fp in file_paths:
-            content = _read_file_safe(fp)
-            if content is None:
-                continue
-            total_matches += len(re.findall(pattern, content))
+        try:
+            for fp in file_paths:
+                content = _read_file_safe(fp)
+                if content is None:
+                    continue
+                total_matches += _regex_match_count(pattern, content)
+        except ValueError as exc:
+            result["detail"] = str(exc)
+            return result
 
         result["passed"] = total_matches >= min_count
         result["detail"] = (
@@ -147,7 +159,11 @@ def run_single_assertion(assertion: dict[str, Any]) -> dict[str, Any]:
             result["passed"] = True
             result["detail"] = f"File '{file_field}' not found (pattern absent by default)"
         else:
-            count = len(re.findall(pattern, content))
+            try:
+                count = _regex_match_count(pattern, content)
+            except ValueError as exc:
+                result["detail"] = str(exc)
+                return result
             result["passed"] = count == 0
             result["detail"] = f"Found {count} match(es) for /{pattern}/ in {file_field}"
 
@@ -169,7 +185,17 @@ def run_spec_assertions(
             "skipped": True,
         }
 
-    results = [run_single_assertion(a) for a in assertions]
+    results = []
+    for assertion in assertions:
+        try:
+            results.append(run_single_assertion(assertion))
+        except Exception as exc:
+            results.append({
+                "type": assertion.get("type", ""),
+                "description": assertion.get("description", "") or "Assertion execution error",
+                "passed": False,
+                "detail": f"Assertion execution error: {exc}",
+            })
 
     # Only machine-checkable assertions determine overall_passed
     machine_results = [r for r in results if not r.get("skipped")]
@@ -276,6 +302,8 @@ def main() -> int:
     try:
         summary = run_all_assertions(db, triggered_by=triggered_by, spec_id=args.spec)
         print_summary(summary)
+        if "error" in summary:
+            return 1
         return 1 if summary.get("failed", 0) > 0 else 0
     finally:
         db.close()

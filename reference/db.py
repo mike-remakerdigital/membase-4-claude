@@ -503,7 +503,15 @@ class KnowledgeDB:
         ).fetchone()[0]
 
         pending_prompts = conn.execute(
-            "SELECT COUNT(*) FROM session_prompts WHERE event_type = 'created'"
+            """SELECT COUNT(*) FROM (
+                   SELECT p.event_type
+                   FROM session_prompts p
+                   INNER JOIN (
+                       SELECT session_id, MAX(rowid) AS max_rowid
+                       FROM session_prompts GROUP BY session_id
+                   ) m ON p.session_id = m.session_id AND p.rowid = m.max_rowid
+                   WHERE p.event_type = 'created'
+               )"""
         ).fetchone()[0]
 
         return {
