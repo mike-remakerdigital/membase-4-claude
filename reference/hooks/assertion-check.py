@@ -27,6 +27,7 @@ MIT License — see LICENSE for details.
 import json
 import sys
 import os
+import subprocess
 from pathlib import Path
 
 # Resolve project directory from CLAUDE_PROJECT_DIR or cwd
@@ -106,6 +107,34 @@ def _prune_assertion_runs(db) -> list[str]:
         return [f"Assertion pruning error: {e}"]
 
 
+def _check_git_clean() -> list[str]:
+    """Check for uncommitted/untracked files and return context lines."""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(PROJECT_DIR),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            if detail:
+                return [f"Git status check failed: {detail}"]
+            return ["Git status check failed."]
+
+        status = result.stdout.strip()
+        if not status:
+            return []
+
+        lines = ["WORKTREE DIRTY (commit-everything policy):"]
+        for line in status.splitlines():
+            lines.append(f"  {line}")
+        return lines
+    except Exception as e:
+        return [f"Git status check error: {e}"]
+
+
 def _read_handoff_prompt(db) -> list[str]:
     """Read and consume the latest session handoff prompt."""
     try:
@@ -175,6 +204,7 @@ def main():
         try:
             lines = _run_assertions(db)
             lines.extend(_prune_assertion_runs(db))
+            lines.extend(_check_git_clean())
             lines.extend(_read_handoff_prompt(db))
         finally:
             db.close()
