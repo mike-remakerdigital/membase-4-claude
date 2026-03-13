@@ -2,7 +2,7 @@
 
 **A pattern for giving Claude Code persistent, version-controlled, self-auditing project memory using an append-only SQLite database.**
 
-> This pattern was developed across 158 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
+> This pattern was developed across 173 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
 
 ---
 
@@ -402,7 +402,7 @@ Without assertions, Claude "believes" specs are implemented based on session mem
 
 ## Step 3: Governance Principles
 
-These governance principles evolved over 158 sessions. They are not mandatory — adopt the ones that fit your project.
+These governance principles evolved over 173 sessions. They are not mandatory — adopt the ones that fit your project.
 
 ### GOV-01: Specs Are the Negotiation Artifact
 
@@ -718,7 +718,7 @@ before new work.
 
 ---
 
-## Lessons Learned (158 Sessions)
+## Lessons Learned (173 Sessions)
 
 1. **The assertion runner is the single most valuable piece.** It turns "Claude remembers" into "Claude proves." Regressions caught at session start save hours of debugging.
 
@@ -768,15 +768,19 @@ before new work.
 
 24. **Backlog snapshots are workflow gates.** The KB enforces `created → tested → backlogged → implementing → resolved` transitions. Advancing to `implementing` requires the work item to exist in a backlog snapshot. This prevents bypassing prioritization — you cannot implement work that was never formally planned.
 
-25. **Governance principles compound and accelerate.** GOV-01 through GOV-18 were discovered over 158 sessions. Early principles (GOV-01–06) took many sessions to crystallize. Later ones (GOV-13–18) emerged within a few sessions because the pattern was established. Expect governance discovery to accelerate as the system matures.
+25. **Governance principles compound and accelerate.** GOV-01 through GOV-18 were discovered over 173 sessions. Early principles (GOV-01–06) took many sessions to crystallize. Later ones (GOV-13–18) emerged within a few sessions because the pattern was established. Expect governance discovery to accelerate as the system matures.
 
-26. **Batch assertion generation requires semantic categorization.** A 3-tier strategy (grep in known file → glob for file existence → keyword-to-file mapping) achieved 99.5% assertion coverage across 1,884 specs. But keyword heuristics (matching "MUST" in titles) create systematic mis-mappings. Categorizing specs by their subject (what does this spec describe?) is the only reliable approach. GOV-18 codifies this.
+26. **Batch assertion generation requires semantic categorization.** A 3-tier strategy (grep in known file → glob for file existence → keyword-to-file mapping) achieved broad assertion coverage across 1,950 specs. But keyword heuristics (matching "MUST" in titles) create systematic mis-mappings. Categorizing specs by their subject (what does this spec describe?) is the only reliable approach. GOV-18 codifies this.
 
 27. **Quality dashboards make metrics actionable.** Displaying 4 key metrics (assertion coverage, test traceability, defect velocity, defect escape rate) at every session start changed behavior immediately. When a metric is red, it becomes the first priority. Without visibility, quality degradation is silent and gradual.
 
 28. **Testable element inventory closes coverage gaps.** Inventorying every UI component, form field, and interactive element (520 across 12 admin pages) revealed that "we have tests" is different from "everything is tested." The 14-dimension taxonomy (A–N: visibility, content, interaction, etc.) ensures tests cover what users actually experience, not just what developers thought to test.
 
-29. **Assertion pruning is essential for long-running projects.** Without pruning, the assertion_runs table grew to 229K rows and 93 MB (larger than all other data combined). Keeping only the latest 5 runs per spec reduced this to 9.3K rows and 18 MB — a 96% reduction with no loss of diagnostic value. Automate this in the SessionStart hook.
+29. **Assertion pruning is essential for long-running projects.** Without pruning, the assertion_runs table grew to 229K rows and 93 MB (larger than all other data combined). Keeping only the latest 5 runs per spec reduced this dramatically with no loss of diagnostic value. Automate this in the SessionStart hook.
+
+30. **Monolith splits require assertion remapping.** When a large source file is split into a package of submodules, every spec assertion referencing the old file path silently fails. The session-start hook reports these as individual failures without identifying the root cause pattern. After splitting a 5,085-line monolith into 5 domain submodules (S169), 50 specs needed file path remapping (S173). Always audit assertion file paths after structural refactors.
+
+31. **Mock E2E tests complement live tests, not replace them.** A zero-backend mock development environment (527 tests across 14 files) enables rapid UI development without API dependencies. But mock tests verify UI behavior against fixture data — they cannot catch integration failures, auth issues, or data format mismatches. Both layers are necessary: mocks for speed, live tests for truth.
 
 30. **Batch description enrichment using source file context.** Specs linked to source files (via assertions) can generate meaningful descriptions automatically: restate the title as a requirement, add context from the assertion's source file path. This enriched 885 NULL-description specs in one pass, achieving 92% description coverage.
 
@@ -853,36 +857,38 @@ Membase was not designed upfront — it evolved through real project needs. Each
 | S153 | Specs classified as "not yet implemented" that are actually implemented | **Verification mega-session** — 400 spec promotions, 148 retirements, GOV-18 (Assertion Quality Standard) |
 | S157 | SPA console shares auth layer with tenant endpoints | **SPEC-1667/1668** — Complete SPA platform admin auth isolation with dedicated Cosmos collection and key prefix |
 | S158 | assertion_runs table grows unboundedly (~230K rows, ~93 MB) | **Assertion pruning** — keeps latest 5 runs per spec, automated in SessionStart hook. DB 93 → 18 MB. |
+| S161 | Quality evaluation exposed auth, rate-limit, and CI gaps | **Quality evaluation remediation** — auth hardening, rate limit backend consolidation, CI/CD tooling |
+| S165–S166 | Need zero-backend UI development and testing | **Mock dev environment** + 527 mock E2E tests (SPEC-1706), zero-backend testing |
+| S169 | 5,085-line monolith file blocks team scalability | **Superadmin API split** — monolith decomposed into 5 domain submodules |
+| S173 | 74 stale assertion failures after package split | **Deep hygiene** — assertion remapping after monolith split, 17 spec retirements, 1,621/1,621 assertions passing |
 
-### Current State (Session 158)
+### Current State (Session 173 — GA Release)
 
 | Category | Metric | Count |
 |----------|--------|-------|
-| **Specifications** | Total | 1,884 |
-| | Verified | 313 |
-| | Implemented | 1,350 |
-| | Specified (not yet implemented) | 61 |
-| | Retired | 159 |
-| | Governance (GOV-01 through GOV-18) | 20 |
-| **Tests** | Test artifacts (spec-linked) | 8,888 |
-| | Test-to-spec coverage mappings | 2,278 |
-| | Automated tests passing | 5,984 |
+| **Specifications** | Total | 1,950 |
+| | Verified | 310 |
+| | Implemented | 1,399 |
+| | Specified (not yet implemented) | 65 |
+| | Retired | 176 |
+| | Governance (GOV-01 through GOV-18) | 21 |
+| **Tests** | Test artifacts (spec-linked) | 10,116 |
+| | Automated tests passing | 6,634 |
 | | Live E2E tests (3 admin consoles) | 936 |
-| **Work Items** | Total | 1,126 |
-| | Resolved/closed | 1,115 |
-| | Open | 11 |
-| **Assertions** | Specs with machine-verifiable assertions | 1,874 (99.5% coverage) |
-| | Assertion run records (pruned to latest 5/spec) | 9,370 |
-| **Test Plan** | Active phases (live-only, SPEC-1649) | 13 |
+| | Mock E2E tests (zero-backend) | 527 |
+| **Work Items** | Total | 1,264 |
+| | Resolved/closed | 1,261 |
+| | Open | 3 |
+| **Assertions** | Specs with machine-verifiable assertions | 1,621 (100% pass rate) |
+| **Test Plan** | Active phases (live-only, SPEC-1649) | 14 |
 | | Removed phases (mocked/inspection) | 3 |
 | **Quality** | Testable elements inventoried | 520 |
 | | Quality dashboard metrics | 4 (all green) |
-| **Knowledge** | Documents under change control | 145 |
-| | Operational procedures | 13 |
-| | Governance principles | 20 (18 numbered + 2 architectural) |
-| **Database** | Versioned artifact rows | 21,717 |
-| | Database size | 18.5 MB (pruned from 93 MB peak) |
-| | Data loss incidents | 0 |
+| **Knowledge** | Documents under change control | 150 |
+| | Operational procedures | 14 |
+| | Governance principles | 21 (18 numbered + 3 architectural) |
+| | Backlog snapshots | 12 |
+| **Database** | Data loss incidents | 0 |
 
 ### What the System Catches
 
@@ -925,6 +931,6 @@ Honesty about limitations: Membase does not track session duration, so there are
 
 ---
 
-*This pattern was developed across 158 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence) are universal.*
+*This pattern was developed across 173 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence) are universal.*
 
 *© 2026 Remaker Digital, a DBA of VanDusen & Palmeter, LLC. All rights reserved.*

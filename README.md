@@ -12,7 +12,7 @@
 
 Membase is a **pattern** (not a library) for giving Claude Code durable memory that survives across sessions. It replaces fragile markdown backlogs with a structured, append-only SQLite database where every change is versioned and every claim is machine-verifiable.
 
-Developed across 158 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
+Developed across 173 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
 
 1. **Context window saturation** — long sessions accumulate stale context that biases decisions.
 2. **Session boundary amnesia** — each new session starts cold; CLAUDE.md and MEMORY.md help but drift over time.
@@ -22,7 +22,7 @@ Developed across 158 sessions on a commercial SaaS project, it solves three prob
 
 Claude is the **sole writer**. The human observes through a read-only web UI. The database stores 9 managed artifact types — specifications, tests, test plans, work items, backlog snapshots, operational procedures, documents, environment config, and testable elements — all under append-only change control. Machine-verifiable assertions (grep/glob checks against the actual codebase) run automatically at session start, catching regressions before work begins. A quality dashboard displays 4 key metrics (assertion coverage, test traceability, defect velocity, defect escape rate) at session start. A session handoff system eliminates cold-start friction by having each session store context for the next one.
 
-The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 99.5% machine-verifiable assertion coverage across 1,884 specifications (S146–S150), and implementing automated assertion pruning to keep the database compact (S158).
+The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 100% machine-verifiable assertion pass rate across 1,621 assertions on 1,950 specifications (S146–S173), and implementing automated assertion pruning to keep the database compact (S158).
 
 ## Getting Started
 
@@ -88,7 +88,7 @@ These terms have specific meanings in the Membase pattern. Understanding them is
 | **Assertion** | A machine-verifiable check (grep/glob) attached to a specification. Turns "Claude remembers" into "Claude proves." |
 | **Phantom Artifact** | A concept referenced as if tracked, but with no backing storage or change control. The anti-pattern this system eliminates. |
 | **Orchestrating Artifact** | An artifact that composes others by reference (ID only), never by content duplication. |
-| **Governance Principle** | A process rule (GOV-\*) governing human-AI collaboration. 18 numbered rules (GOV-01–GOV-18) plus 2 architectural principles (Artifact Inventory, Orchestrating Artifact). Discovered through use, not designed upfront. |
+| **Governance Principle** | A process rule (GOV-\*) governing human-AI collaboration. 18 numbered rules (GOV-01–GOV-18) plus 3 architectural principles (Artifact Inventory, Orchestrating Artifact, Spec Litmus Test). Discovered through use, not designed upfront. |
 | **Append-Only** | The change control discipline: no UPDATE, no DELETE. Every mutation creates a new versioned row. |
 | **Session Handoff** | A structured prompt stored by one session for the next, eliminating cold-start friction. |
 | **Protected Behavior** | A specification carrying machine-verifiable assertions that must always pass. |
@@ -99,7 +99,7 @@ See the [full glossary with examples](MEMBASE-4-CLAUDE.md#glossary) in the imple
 
 ## Benefits & Milestones
 
-Membase was not designed upfront — it evolved through real project needs across 158 sessions. The milestones below trace how each capability was added in response to a specific problem.
+Membase was not designed upfront — it evolved through real project needs across 173 sessions. The milestones below trace how each capability was added in response to a specific problem.
 
 ### Evolution Timeline
 
@@ -124,25 +124,28 @@ Membase was not designed upfront — it evolved through real project needs acros
 | S153 | Specs classified as "not yet implemented" that are actually implemented | **Verification mega-session** — 400 spec promotions, 148 retirements, GOV-18 (Assertion Quality Standard) |
 | S157 | SPA console shares auth layer with tenant endpoints | **SPEC-1667/1668** — Complete SPA platform admin auth isolation with dedicated Cosmos collection and key prefix |
 | S158 | assertion_runs table grows unboundedly (~230K rows, ~93 MB) | **Assertion pruning** — keeps latest 5 runs per spec, automated in SessionStart hook. DB 93 → 18 MB. Batch description enrichment (885 specs). |
+| S161 | Quality evaluation exposed auth, rate-limit, and CI gaps | **Quality evaluation remediation** — auth hardening (30-min inactivity logout, session binding, X-Frame-Options), rate limit backend consolidation, CI/CD tooling (GitHub Actions, Makefile) |
+| S165–S166 | Need zero-backend UI development and testing | **Mock dev environment** — `npm run dev:mock` with in-memory store + fixture data. 527 mock E2E tests (SPEC-1706) across 14 test files, zero-backend testing. |
+| S169 | 5,085-line monolith file blocks team scalability | **Superadmin API split** — monolith decomposed into 5 domain submodules. Key lesson: Python `from module import var` creates a local binding invisible to `mock.patch` — use module-attribute access pattern instead. |
+| S173 | 74 stale assertion failures after monolith split | **Deep hygiene** — all 74 failures traced to stale file paths from S169 package split. 50 specs remapped to correct submodules, 17 specs retired. Final state: 1,621/1,621 assertions passing. |
 
-### Current Database (as of Session 158)
+### Current Database (as of Session 173 — GA Release)
 
 | Metric | Count |
 |--------|-------|
-| Specifications | 1,884 (313 verified, 1,350 implemented, 61 specified, 159 retired) |
-| Test artifacts | 8,888 (linked to specifications) |
-| Work items | 1,126 (1,115 resolved/closed, 11 open) |
-| Machine-verifiable assertions | 1,874 specs with assertions (99.5% coverage) |
-| Assertion run records | 9,370 (auto-pruned to latest 5 per spec) |
-| Knowledge documents | 145 |
-| Operational procedures | 13 |
-| Governance principles | 20 (GOV-01 through GOV-18 + 2 architectural) |
-| Test plan phases | 13 active, 3 removed (live-only per SPEC-1649) |
+| Specifications | 1,950 (310 verified, 1,399 implemented, 65 specified, 176 retired) |
+| Test artifacts | 10,116 (linked to specifications) |
+| Work items | 1,264 (1,261 resolved/closed, 3 open) |
+| Machine-verifiable assertions | 1,621 specs with assertions (100% pass rate) |
+| Knowledge documents | 150 |
+| Operational procedures | 14 |
+| Governance principles | 21 (GOV-01 through GOV-18 + 3 architectural) |
+| Test plan phases | 14 active, 3 removed (live-only per SPEC-1649) |
 | Testable elements | 520 (UI component inventory for coverage tracking) |
-| Live E2E tests | 936 (across 3 admin consoles) |
-| Versioned artifact rows | 21,717 (complete change history) |
-| Automated tests passing | 5,984 |
-| Database size | 18.5 MB (pruned from 93 MB peak) |
+| Live E2E tests | 936 (across 3 admin consoles: Standalone 576, Provider 264, Shopify 96) |
+| Mock E2E tests | 527 (zero-backend UI testing across 14 test files) |
+| Backlog snapshots | 12 |
+| Automated tests passing | 6,634 |
 | Data loss incidents | 0 |
 
 ### What the System Catches
@@ -173,7 +176,7 @@ This pattern was developed incrementally on the [Agent Red Customer Experience](
 
 The database is used exclusively by Claude and contains only what Claude needs to remember. The human observes through a lightweight read-only UI (sort, filter, search, tree-view, change history) that deliberately excludes write operations. When the human spots a discrepancy, they tell Claude, and Claude creates a corrected version.
 
-The current database is ~18 MB (pruned from a 93 MB peak via automated assertion run cleanup) with 1,884 specifications, 8,888 test artifacts, 1 test plan (13 active phases, 3 removed), 1,126 work items, 13 operational procedures, 145 documents, 27 environment config entries, 520 testable elements, 1,874 specs with machine-verifiable assertions (99.5% coverage), and over 2,200 test-to-spec coverage mappings — all accumulated across 158 sessions with zero data loss.
+The current database contains 1,950 specifications, 10,116 test artifacts, 1 test plan (14 active phases, 3 removed), 1,264 work items (3 open), 14 operational procedures, 150 documents, 520 testable elements, and 1,621 machine-verifiable assertions at 100% pass rate — all accumulated across 173 sessions with zero data loss.
 
 ---
 
