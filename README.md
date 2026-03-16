@@ -12,7 +12,7 @@
 
 Membase is a **pattern** (not a library) for giving Claude Code durable memory that survives across sessions. It replaces fragile markdown backlogs with a structured, append-only SQLite database where every change is versioned and every claim is machine-verifiable.
 
-Developed across 173 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
+Developed across 189 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
 
 1. **Context window saturation** — long sessions accumulate stale context that biases decisions.
 2. **Session boundary amnesia** — each new session starts cold; CLAUDE.md and MEMORY.md help but drift over time.
@@ -22,7 +22,7 @@ Developed across 173 sessions on a commercial SaaS project, it solves three prob
 
 Claude is the **sole writer**. The human observes through a read-only web UI. The database stores 9 managed artifact types — specifications, tests, test plans, work items, backlog snapshots, operational procedures, documents, environment config, and testable elements — all under append-only change control. Machine-verifiable assertions (grep/glob checks against the actual codebase) run automatically at session start, catching regressions before work begins. A quality dashboard displays 4 key metrics (assertion coverage, test traceability, defect velocity, defect escape rate) at session start. A session handoff system eliminates cold-start friction by having each session store context for the next one.
 
-The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 100% machine-verifiable assertion pass rate across 1,621 assertions on 1,950 specifications (S146–S173), and implementing automated assertion pruning to keep the database compact (S158).
+The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 100% machine-verifiable assertion pass rate across 1,621 assertions on 2,016 specifications (S146–S173), implementing automated assertion pruning to keep the database compact (S158), and formalizing repeatable workflows as executable Claude Code skills (S189).
 
 ## Getting Started
 
@@ -94,12 +94,13 @@ These terms have specific meanings in the Membase pattern. Understanding them is
 | **Protected Behavior** | A specification carrying machine-verifiable assertions that must always pass. |
 | **Testable Element** | A UI component, form field, or interactive element inventoried for test coverage tracking. Stored in the `testable_elements` table with dimensional taxonomy (14 categories A–N). |
 | **Quality Dashboard** | A 4-metric display rendered at session start: assertion coverage, test traceability, defect velocity, and defect escape rate. Provides immediate quality signal before work begins. |
+| **Skill** | A Claude Code SKILL.md file that encodes a repeatable workflow as an executable playbook. Stored in `.claude/skills/<name>/SKILL.md`. Skills mechanize governance chains (e.g., GOV-12 + GOV-13) that previously relied on Claude's self-discipline. |
 
 See the [full glossary with examples](MEMBASE-4-CLAUDE.md#glossary) in the implementation guide.
 
 ## Benefits & Milestones
 
-Membase was not designed upfront — it evolved through real project needs across 173 sessions. The milestones below trace how each capability was added in response to a specific problem.
+Membase was not designed upfront — it evolved through real project needs across 189 sessions. The milestones below trace how each capability was added in response to a specific problem.
 
 ### Evolution Timeline
 
@@ -128,24 +129,37 @@ Membase was not designed upfront — it evolved through real project needs acros
 | S165–S166 | Need zero-backend UI development and testing | **Mock dev environment** — `npm run dev:mock` with in-memory store + fixture data. 527 mock E2E tests (SPEC-1706) across 14 test files, zero-backend testing. |
 | S169 | 5,085-line monolith file blocks team scalability | **Superadmin API split** — monolith decomposed into 5 domain submodules. Key lesson: Python `from module import var` creates a local binding invisible to `mock.patch` — use module-attribute access pattern instead. |
 | S173 | 74 stale assertion failures after monolith split | **Deep hygiene** — all 74 failures traced to stale file paths from S169 package split. 50 specs remapped to correct submodules, 17 specs retired. Final state: 1,621/1,621 assertions passing. |
+| S174–S175 | Single-tenant architecture won't scale to 680 tenants | **680-tenant infrastructure scaling** — Redis cache, sharded rate limiting, 4 Uvicorn workers, global SSE, tenant metadata cache, LRU guards, per-tier entitlements. 90 tests. |
+| S176 | Redis connection failures in container environment | **Redis connectivity fix** — `username=None` required in `Redis.from_url()` for Azure Cache for Redis. v1.83.0 deployed. |
+| S177–S179 | Rubber-stamp tests pass without verifying real behavior | **GOV-18 enforcement** — 11 rubber-stamp tests replaced with behavioral tests exercising actual API responses, not just "status 200." |
+| S178 | No integration ecosystem plan beyond core product | **P1 Integration Ecosystem** — 18 specifications (SPEC-1761–1778) for MCP agents, Shopify deep integration, Stripe billing, and AGNTCY multi-agent protocol. |
+| S180 | Provider Console missing critical admin workflows | **Provider Console walkthrough** — 3 fixes (Co-Pilot Knowledge repo, email lookup, tenant display names). v1.84.0 production deploy. |
+| S181–S183 | AI agents run in-process; can't scale independently | **AGNTCY multi-agent containerization** — 7 agent containers deployed (IC, KR, RG, escalation, analytics, critic, co-pilot). NATS JetStream provisioned. AGNTCY SDK wired. Fail-loud dispatch (SPEC-1780). v1.86.0. |
+| S184 | Rate limits hard-coded per tier; no data-driven tuning | **Data-driven rate limiting** — Ramp-to-overload test derived 1,380 RPM safe capacity. Uniform 300 RPM/tenant. Per-tier cap enforcement removed. RATE_LIMIT_DISABLED env var. v1.87.0. |
+| S185 | 5 assertion regressions accumulated across S184 changes | **Audit session** — all regressions traced to rate limit constant changes (500→300) and glob path fixes. 8 stale WIs resolved. Production Cosmos patched. |
+| S186 | UI bugs, stale closures, and email footer missing | **Bug fix + email refactor** — button color, auto-save stale closure, avatar 413, unsubscribe footer via `format_branded_email()` refactor (12 modules). AI-generated widget greeting. v1.88.0. |
+| S187 | Specs claim "implemented" but code doesn't match | **Full spec-vs-code verification** — all 2,009 specs verified against source. 3 mismatches found, 369 weak assertions, 7 missing specs created (SPEC-1806–1812). v1.88.1. |
+| S188 | 91 specs stuck in "specified" status | **Specified-spec triage** — 16 promoted to implemented, 7 retired, 7 WIs created for genuine gaps. Transport hierarchy clarified (SLIM required, NATS fallback, HTTP external-only). |
+| S189 | Repeatable procedures exist only as prose in KB; no executable enforcement | **Claude Code Skills** — 8 project-level skills wrapping deployment, testing, tenant seeding, and KB management workflows. Skills mechanize GOV-01/GOV-12/GOV-13 governance chains. SCHEDULE.md and CLAUDE.md wrap-up procedures refactored to delegate to skills. |
 
-### Current Database (as of Session 173 — GA Release)
+### Current Database (as of Session 189)
 
 | Metric | Count |
 |--------|-------|
-| Specifications | 1,950 (310 verified, 1,399 implemented, 65 specified, 176 retired) |
-| Test artifacts | 10,116 (linked to specifications) |
-| Work items | 1,264 (1,261 resolved/closed, 3 open) |
-| Machine-verifiable assertions | 1,621 specs with assertions (100% pass rate) |
-| Knowledge documents | 150 |
-| Operational procedures | 14 |
+| Specifications | 2,016 (313 verified, 1,448 implemented, 68 specified, 187 retired) |
+| Test artifacts | 20,248 (linked to specifications) |
+| Work items | 1,385 (1,371 resolved/closed, 14 open) |
+| Machine-verifiable assertions | 100% pass rate across all assertable specs |
+| Knowledge documents | 175 |
+| Operational procedures | 17 |
 | Governance principles | 21 (GOV-01 through GOV-18 + 3 architectural) |
-| Test plan phases | 14 active, 3 removed (live-only per SPEC-1649) |
+| Test plan phases | 13 active, 3 removed (live-only per SPEC-1649) |
 | Testable elements | 520 (UI component inventory for coverage tracking) |
 | Live E2E tests | 936 (across 3 admin consoles: Standalone 576, Provider 264, Shopify 96) |
 | Mock E2E tests | 527 (zero-backend UI testing across 14 test files) |
-| Backlog snapshots | 12 |
-| Automated tests passing | 6,634 |
+| Backlog snapshots | 16 |
+| Automated tests passing | 6,053 (unit + multi-tenant + agents + integrations) |
+| Claude Code skills | 8 (deployment, testing, seeding, KB management) |
 | Data loss incidents | 0 |
 
 ### What the System Catches
@@ -156,6 +170,53 @@ Membase was not designed upfront — it evolved through real project needs acros
 - **Cold-start amnesia** — session handoff prompts give each new session the context it needs without human re-explanation
 - **Accumulated process drift** — every 5th session is an audit, catching errors that compound across sessions
 - **Untested specifications** — `get_untested_specs()` identifies coverage gaps on demand
+
+## Skills — Executable Governance
+
+As of Session 189, the Membase pattern extends beyond the database and hooks into **Claude Code skills** — SKILL.md files that encode repeatable workflows as executable procedures.
+
+### The Problem Skills Solve
+
+Governance rules (GOV-01 through GOV-18) tell Claude *what to do*, but enforcement relied on Claude's self-discipline and hook reminders. Multi-step chains like "create work item → create linked test → assign to test plan phase → add to backlog" (GOV-12 + GOV-13) were easy to partially execute, silently dropping steps.
+
+### The Solution
+
+Skills turn prose procedures into step-by-step executable playbooks. Claude Code loads them on demand, and each skill contains the exact Python/bash commands to complete the workflow. Two invocation modes prevent accidents:
+
+- **Owner-only** (`disable-model-invocation: true`) — for destructive operations (deploy, seed, session wrap-up). Claude cannot trigger these autonomously.
+- **Auto-invocable** — for knowledge work (KB queries, spec creation, test linking). Claude uses these proactively when the conversation warrants it.
+
+### Reference Implementation: 8 Project Skills
+
+| Skill | Invocation | Purpose |
+|-------|-----------|---------|
+| `/deploy` | Owner only | Full build-deploy-verify pipeline with GOV-16 deploy gate |
+| `/seed-tenant` | Owner only | 9-phase Cosmos DB tenant provisioning |
+| `/kb-session-wrap` | Owner only | 5-phase structured session wrap-up |
+| `/run-tests` | Owner + Claude | Thermal-safe batch runner + PLAN-001 E2E pipeline |
+| `/kb-query` | Owner + Claude | Read-only Knowledge Database lookups |
+| `/kb-spec` | Owner + Claude | Guided spec creation with duplicate detection (GOV-01) |
+| `/kb-work-item` | Owner + Claude | WI → Test → Phase assignment chain (GOV-12 + GOV-13) |
+| `/kb-promote` | Owner + Claude | Assertion-gated spec status promotion |
+
+### Skill File Structure
+
+```
+.claude/skills/
+  deploy/
+    SKILL.md          # YAML frontmatter + markdown instructions
+  kb-query/
+    SKILL.md
+  kb-work-item/
+    SKILL.md
+  ...
+```
+
+Each `SKILL.md` contains YAML frontmatter (name, description, invocation control, allowed tools) followed by markdown instructions with embedded code blocks. Skills follow the [Agent Skills](https://agentskills.io) open standard.
+
+### Key Design Principle
+
+**CLAUDE.md states the rule, skills encode the execution, KB procedures are the audit trail.** This three-layer separation means rules don't need to contain implementation details, skills don't need to repeat governance rationale, and KB procedures remain the canonical historical record.
 
 ## Why Not Just Use Markdown?
 
@@ -176,7 +237,7 @@ This pattern was developed incrementally on the [Agent Red Customer Experience](
 
 The database is used exclusively by Claude and contains only what Claude needs to remember. The human observes through a lightweight read-only UI (sort, filter, search, tree-view, change history) that deliberately excludes write operations. When the human spots a discrepancy, they tell Claude, and Claude creates a corrected version.
 
-The current database contains 1,950 specifications, 10,116 test artifacts, 1 test plan (14 active phases, 3 removed), 1,264 work items (3 open), 14 operational procedures, 150 documents, 520 testable elements, and 1,621 machine-verifiable assertions at 100% pass rate — all accumulated across 173 sessions with zero data loss.
+The current database contains 2,016 specifications, 20,248 test artifacts, 1 test plan (13 active phases, 3 removed), 1,385 work items (14 open), 17 operational procedures, 175 documents, 520 testable elements, and machine-verifiable assertions at 100% pass rate — all accumulated across 189 sessions with zero data loss. Session 189 introduced 8 Claude Code skills that mechanize governance workflows as executable playbooks.
 
 ---
 

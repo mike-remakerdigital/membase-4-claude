@@ -2,7 +2,7 @@
 
 **A pattern for giving Claude Code persistent, version-controlled, self-auditing project memory using an append-only SQLite database.**
 
-> This pattern was developed across 173 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
+> This pattern was developed across 189 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
 
 ---
 
@@ -402,7 +402,7 @@ Without assertions, Claude "believes" specs are implemented based on session mem
 
 ## Step 3: Governance Principles
 
-These governance principles evolved over 173 sessions. They are not mandatory — adopt the ones that fit your project.
+These governance principles evolved over 189 sessions. They are not mandatory — adopt the ones that fit your project.
 
 ### GOV-01: Specs Are the Negotiation Artifact
 
@@ -683,6 +683,86 @@ def main():
 
 ---
 
+## Step 9: Claude Code Skills (Executable Governance)
+
+Skills convert prose procedures into executable playbooks that Claude follows step-by-step. Each skill is a `SKILL.md` file with YAML frontmatter and markdown instructions, stored in `.claude/skills/<name>/SKILL.md`. Skills follow the [Agent Skills](https://agentskills.io) open standard.
+
+### Why Skills Matter for Membase
+
+Governance rules (GOV-01 through GOV-18) tell Claude *what to do*, but multi-step chains are easy to partially execute. GOV-12 ("work item creation triggers test creation") + GOV-13 ("every test assigned to a plan phase") requires three consecutive database writes — miss one and the system silently drifts. Skills make the chain atomic by encoding all steps in a single invocable playbook.
+
+### Two Invocation Modes
+
+```yaml
+# Owner-only: destructive operations, deployment, session wrap-up
+---
+name: deploy
+description: Deploy to staging or production
+disable-model-invocation: true
+allowed-tools: Bash, Read, Grep
+---
+
+# Auto-invocable: knowledge work Claude should do proactively
+---
+name: kb-query
+description: Query the Knowledge Database
+allowed-tools: Bash, Read
+---
+```
+
+- **`disable-model-invocation: true`** — only the human can trigger. Use for side-effect-heavy operations (deploy, seed, session wrap-up).
+- **Default (omitted)** — both human and Claude can invoke. Claude loads the skill when the conversation context matches the description.
+
+### Recommended Skills for Membase Projects
+
+| Skill | Mode | What It Mechanizes |
+|-------|------|-------------------|
+| `/deploy` | Owner only | Build-deploy-verify pipeline with GOV-16 deploy gate |
+| `/seed-tenant` | Owner only | Database seeding / tenant provisioning |
+| `/kb-session-wrap` | Owner only | End-of-session procedure (KB update → MEMORY → git push → handoff) |
+| `/run-tests` | Auto | Test execution (batch runner + E2E pipeline) |
+| `/kb-query` | Auto | Read-only KB lookups (specs, tests, WIs, docs) |
+| `/kb-spec` | Auto | Guided spec creation with duplicate detection (GOV-01) |
+| `/kb-work-item` | Auto | WI → Test → Phase assignment chain (GOV-12 + GOV-13) |
+| `/kb-promote` | Auto | Assertion-gated spec status promotion |
+
+### Skill Template
+
+```yaml
+---
+name: kb-work-item
+description: Create a work item with automatic test creation and backlog assignment.
+allowed-tools: Bash, Read, Grep
+---
+
+# Create Work Item (GOV-12 Chain)
+
+## Step 1: Determine next IDs
+Query KB for next available WI and TEST IDs.
+
+## Step 2: Create work item
+```python
+db.insert_work_item(id=..., title=..., origin=..., component=..., ...)
+```
+
+## Step 3: Create linked test (MANDATORY — GOV-12)
+```python
+db.insert_test(id=..., spec_id=..., test_type=..., expected_outcome=..., ...)
+```
+
+## Step 4: Assign to PLAN-001 phase (MANDATORY — GOV-13)
+Record the phase assignment.
+
+## Step 5: Report summary
+Print the full chain: WI → TEST → Phase.
+```
+
+### Design Principle
+
+**CLAUDE.md states the rule, skills encode the execution, KB procedures are the audit trail.** This three-layer separation means rules don't contain implementation details, skills don't repeat governance rationale, and KB procedures remain the canonical historical record. When a procedure changes, update the skill (executable) and the KB procedure (record) — CLAUDE.md only changes if the *rule itself* changes.
+
+---
+
 ## Recurring Instructions for CLAUDE.md
 
 Add these to your CLAUDE.md so Claude maintains the database correctly across sessions:
@@ -718,7 +798,7 @@ before new work.
 
 ---
 
-## Lessons Learned (173 Sessions)
+## Lessons Learned (189 Sessions)
 
 1. **The assertion runner is the single most valuable piece.** It turns "Claude remembers" into "Claude proves." Regressions caught at session start save hours of debugging.
 
@@ -768,9 +848,9 @@ before new work.
 
 24. **Backlog snapshots are workflow gates.** The KB enforces `created → tested → backlogged → implementing → resolved` transitions. Advancing to `implementing` requires the work item to exist in a backlog snapshot. This prevents bypassing prioritization — you cannot implement work that was never formally planned.
 
-25. **Governance principles compound and accelerate.** GOV-01 through GOV-18 were discovered over 173 sessions. Early principles (GOV-01–06) took many sessions to crystallize. Later ones (GOV-13–18) emerged within a few sessions because the pattern was established. Expect governance discovery to accelerate as the system matures.
+25. **Governance principles compound and accelerate.** GOV-01 through GOV-18 were discovered over 189 sessions. Early principles (GOV-01–06) took many sessions to crystallize. Later ones (GOV-13–18) emerged within a few sessions because the pattern was established. Expect governance discovery to accelerate as the system matures.
 
-26. **Batch assertion generation requires semantic categorization.** A 3-tier strategy (grep in known file → glob for file existence → keyword-to-file mapping) achieved broad assertion coverage across 1,950 specs. But keyword heuristics (matching "MUST" in titles) create systematic mis-mappings. Categorizing specs by their subject (what does this spec describe?) is the only reliable approach. GOV-18 codifies this.
+26. **Batch assertion generation requires semantic categorization.** A 3-tier strategy (grep in known file → glob for file existence → keyword-to-file mapping) achieved broad assertion coverage across 2,016 specs. But keyword heuristics (matching "MUST" in titles) create systematic mis-mappings. Categorizing specs by their subject (what does this spec describe?) is the only reliable approach. GOV-18 codifies this.
 
 27. **Quality dashboards make metrics actionable.** Displaying 4 key metrics (assertion coverage, test traceability, defect velocity, defect escape rate) at every session start changed behavior immediately. When a metric is red, it becomes the first priority. Without visibility, quality degradation is silent and gradual.
 
@@ -781,6 +861,12 @@ before new work.
 30. **Monolith splits require assertion remapping.** When a large source file is split into a package of submodules, every spec assertion referencing the old file path silently fails. The session-start hook reports these as individual failures without identifying the root cause pattern. After splitting a 5,085-line monolith into 5 domain submodules (S169), 50 specs needed file path remapping (S173). Always audit assertion file paths after structural refactors.
 
 31. **Mock E2E tests complement live tests, not replace them.** A zero-backend mock development environment (527 tests across 14 files) enables rapid UI development without API dependencies. But mock tests verify UI behavior against fixture data — they cannot catch integration failures, auth issues, or data format mismatches. Both layers are necessary: mocks for speed, live tests for truth.
+
+32. **Skills mechanize governance chains that self-discipline cannot sustain.** Multi-step workflows (create WI → create test → assign phase → add to backlog) are easy to partially execute when relying on Claude's memory. Converting these chains into Claude Code skills makes them structurally complete — the skill's instructions make each step mandatory. After 189 sessions, the pattern is clear: hooks *remind*, skills *execute*, KB procedures *record*.
+
+33. **Separate invocation control prevents autonomous side effects.** Skills with `disable-model-invocation: true` (deploy, seed, session wrap-up) cannot be triggered by Claude autonomously. Skills without it (KB queries, spec creation) can be used proactively. This distinction is critical: you want Claude to autonomously query the KB when discussing a spec, but you never want Claude to autonomously deploy to production.
+
+34. **Three-layer procedure architecture reduces redundancy.** Before skills, deployment procedures existed in CLAUDE.md (brief), KB procedures (detailed), and SCHEDULE.md (checklist). After skills, CLAUDE.md says "run `/deploy`" (the rule), the skill has exact commands (the execution), and KB procedures remain the audit trail (the record). Each layer has one job.
 
 30. **Batch description enrichment using source file context.** Specs linked to source files (via assertions) can generate meaningful descriptions automatically: restate the title as a requirement, add context from the assertion's source file path. This enriched 885 NULL-description specs in one pass, achieving 92% description coverage.
 
@@ -826,6 +912,7 @@ These terms have specific meanings in the Membase pattern. Each corresponds to a
 | **Session Handoff** | The mechanism by which one session stores context for the next. The previous session calls `db.insert_session_prompt()` with a structured prompt; the SessionStart hook retrieves and displays it, then marks it consumed. Eliminates the human needing to craft "Continue work on X..." prompts. |
 | **Specify on Contact** | Governance principle (GOV-06): when Claude touches unspecified code, it becomes controlled. Any existing behavior that is modified should first be recorded as a specification before changes are made. |
 | **Audit Session** | Every Nth session (default: 5) is automatically flagged for a fresh-context integrity review. The audit covers KB assertions, MEMORY.md accuracy, procedure correctness, and design debt. Compensates for drift that accumulates incrementally across sessions. |
+| **Skill** | A Claude Code SKILL.md file that encodes a repeatable workflow as an executable playbook. Stored in `.claude/skills/<name>/SKILL.md` with YAML frontmatter controlling invocation mode and tool access. Skills mechanize governance chains that previously relied on Claude's self-discipline. Follows the [Agent Skills](https://agentskills.io) open standard. |
 
 ---
 
@@ -861,33 +948,40 @@ Membase was not designed upfront — it evolved through real project needs. Each
 | S165–S166 | Need zero-backend UI development and testing | **Mock dev environment** + 527 mock E2E tests (SPEC-1706), zero-backend testing |
 | S169 | 5,085-line monolith file blocks team scalability | **Superadmin API split** — monolith decomposed into 5 domain submodules |
 | S173 | 74 stale assertion failures after package split | **Deep hygiene** — assertion remapping after monolith split, 17 spec retirements, 1,621/1,621 assertions passing |
+| S174–S175 | Single-tenant architecture won't scale | **680-tenant infrastructure scaling** — Redis, sharded rate limiting, 4 workers, SSE, cache invalidation, per-tier entitlements |
+| S177–S179 | Rubber-stamp tests pass without verifying behavior | **GOV-18 enforcement** — rubber-stamp tests replaced with behavioral tests |
+| S181–S183 | AI agents run in-process; can't scale independently | **AGNTCY multi-agent containerization** — 7 agent containers, NATS JetStream, fail-loud dispatch |
+| S184 | Rate limits hard-coded per tier | **Data-driven rate limiting** — ramp-to-overload testing, uniform 300 RPM, per-tier caps removed |
+| S187 | Specs claim "implemented" but code doesn't match | **Full spec-vs-code verification** — all 2,009 specs verified against source, 3 mismatches found |
+| S189 | Repeatable procedures exist only as prose | **Claude Code Skills** — 8 project-level skills mechanizing deployment, testing, KB management, and governance chains |
 
-### Current State (Session 173 — GA Release)
+### Current State (Session 189)
 
 | Category | Metric | Count |
 |----------|--------|-------|
-| **Specifications** | Total | 1,950 |
-| | Verified | 310 |
-| | Implemented | 1,399 |
-| | Specified (not yet implemented) | 65 |
-| | Retired | 176 |
+| **Specifications** | Total | 2,016 |
+| | Verified | 313 |
+| | Implemented | 1,448 |
+| | Specified (not yet implemented) | 68 |
+| | Retired | 187 |
 | | Governance (GOV-01 through GOV-18) | 21 |
-| **Tests** | Test artifacts (spec-linked) | 10,116 |
-| | Automated tests passing | 6,634 |
+| **Tests** | Test artifacts (spec-linked) | 20,248 |
+| | Automated tests passing | 6,053 |
 | | Live E2E tests (3 admin consoles) | 936 |
 | | Mock E2E tests (zero-backend) | 527 |
-| **Work Items** | Total | 1,264 |
-| | Resolved/closed | 1,261 |
-| | Open | 3 |
-| **Assertions** | Specs with machine-verifiable assertions | 1,621 (100% pass rate) |
-| **Test Plan** | Active phases (live-only, SPEC-1649) | 14 |
+| **Work Items** | Total | 1,385 |
+| | Resolved/closed | 1,371 |
+| | Open | 14 |
+| **Assertions** | Specs with machine-verifiable assertions | 100% pass rate |
+| **Test Plan** | Active phases (live-only, SPEC-1649) | 13 |
 | | Removed phases (mocked/inspection) | 3 |
 | **Quality** | Testable elements inventoried | 520 |
 | | Quality dashboard metrics | 4 (all green) |
-| **Knowledge** | Documents under change control | 150 |
-| | Operational procedures | 14 |
+| **Knowledge** | Documents under change control | 175 |
+| | Operational procedures | 17 |
 | | Governance principles | 21 (18 numbered + 3 architectural) |
-| | Backlog snapshots | 12 |
+| | Backlog snapshots | 16 |
+| **Skills** | Claude Code skills (executable workflows) | 8 |
 | **Database** | Data loss incidents | 0 |
 
 ### What the System Catches
@@ -928,9 +1022,14 @@ Honesty about limitations: Membase does not track session duration, so there are
 - [ ] Add extended tables (tests, test_plans, work_items, documents, testable_elements) when your project grows
 - [ ] Add quality dashboard metrics to the SessionStart hook (assertion coverage, test traceability, defect velocity, escape rate)
 - [ ] Add assertion run pruning to the SessionStart hook (keep latest N per spec to prevent unbounded growth)
+- [ ] Create `.claude/skills/` directory for executable workflow skills
+- [ ] Add deployment skill (disable-model-invocation: true) wrapping your deploy procedure
+- [ ] Add test runner skill wrapping your test scripts
+- [ ] Add KB management skills to mechanize governance chains (spec creation, work item → test linking, status promotion)
+- [ ] Add session wrap-up skill (disable-model-invocation: true) encoding your end-of-session procedure
 
 ---
 
-*This pattern was developed across 173 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence) are universal.*
+*This pattern was developed across 189 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence) are universal.*
 
 *© 2026 Remaker Digital, a DBA of VanDusen & Palmeter, LLC. All rights reserved.*
