@@ -2,7 +2,7 @@
 
 **A pattern for giving Claude Code persistent, version-controlled, self-auditing project memory using an append-only SQLite database.**
 
-> This pattern was developed across 189 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
+> This pattern was developed across 206 sessions on a commercial SaaS project (Agent Red Customer Experience). It evolved from markdown-only memory into a structured database with 9 managed artifact types after discovering that markdown backlogs drift, context windows forget, and session boundaries lose state. The approach below is extractable to any project.
 
 ---
 
@@ -798,7 +798,314 @@ before new work.
 
 ---
 
-## Lessons Learned (189 Sessions)
+## Step 9: Skills Framework
+
+Claude Code skills (`.claude/skills/`) define reusable workflows as slash commands. For Membase projects, skills should be **KB-aware** — they read from and write to the Knowledge Database rather than operating generically.
+
+### Skill Anatomy
+
+Each skill is a `SKILL.md` file with YAML frontmatter and markdown instructions:
+
+```markdown
+---
+name: deploy
+description: Build, deploy, and verify a release with GOV-16 gate enforcement
+allowed-tools: Bash, Read, Edit, Write, WebFetch
+---
+
+# Deploy Skill
+
+## Prerequisites
+- Owner must have approved deployment (GOV-16)
+- All regression assertions must pass
+
+## Steps
+1. Run assertion check against Knowledge Database
+2. Build container image with current PRODUCT_VERSION
+3. Push to container registry
+4. Update container app revision
+5. Run upgrade verification script
+6. Record deployment event in KB
+```
+
+### Project-Specific vs Generic Skills
+
+Generic development toolkits (e.g., gstack) provide slash commands like `/ship`, `/review`, `/qa` that work on any codebase. These are useful for greenfield projects but **conflict with governed projects** because they bypass governance rules.
+
+For Membase projects, create **project-specific skills** that enforce your governance:
+
+| Generic Skill | KB-Aware Equivalent | Why It's Better |
+|--------------|-------------------|----------------|
+| `/ship` (auto-PR) | `/deploy` (GOV-16 gated) | Requires owner approval before deployment |
+| `/review` (code review) | `/kb-promote` (assertion-gated) | Validates assertions before status promotion |
+| `/qa` (browser testing) | `/run-tests` (pipeline-aware) | Runs through test plan phases, records results to KB |
+
+### Template-Driven Skill Generation
+
+For projects with many skills (>5), consider a template pattern to prevent drift:
+
+```
+skills/
+  deploy/SKILL.md.tmpl      # Source of truth (template)
+  deploy/SKILL.md            # Generated output (committed)
+```
+
+A generation script processes templates into final skills, and CI checks that generated files match their templates. This prevents manual edits from silently drifting away from the canonical definition.
+
+### Skill Catalog in MEMORY.md
+
+List all available skills in MEMORY.md so each session knows what is available:
+
+```markdown
+## Claude Code Skills
+- `/deploy` — Build-deploy-verify pipeline (owner approval required)
+- `/run-tests` — Execute test pipeline with thermal management
+- `/kb-query` — Read-only KB lookups
+- `/kb-spec` — Guided specification creation (GOV-01)
+- `/kb-work-item` — WI → Test → Phase chain (GOV-12+13)
+- `/kb-promote` — Assertion-gated status promotion
+```
+
+Skills are local to the developer machine (`.claude/` is typically gitignored). Document them in MEMORY.md so they survive across sessions even if the directory listing is not in context.
+
+---
+
+## Step 10: Test Pipeline Architecture
+
+Membase Step 2 describes assertions and Step 3 defines governance around testing. This step covers the **execution infrastructure** — how tests actually run and how results flow back into the KB.
+
+### Pipeline-as-Code Pattern
+
+Create a single entry point that orchestrates all test phases:
+
+```python
+# scripts/test_pipeline.py
+# Single-invocation test runner with phase ordering
+
+PHASES = [
+    Phase("unit", "tests/unit/", timeout=120),
+    Phase("multi_tenant", "tests/multi_tenant/", timeout=180),
+    Phase("integration", "tests/integration/", timeout=300),
+    Phase("chat", "tests/chat/", timeout=120),
+    Phase("e2e_live", "tests/e2e_live/", timeout=600, requires_staging=True),
+    Phase("regression", "tests/regression/", timeout=60),
+    Phase("fuzzing", "tests/fuzzing/", timeout=300),
+    Phase("property", "tests/property/", timeout=180),
+]
+
+def run_pipeline(phases=None, env="staging"):
+    results = {}
+    for phase in PHASES:
+        if phases and phase.name not in phases:
+            continue
+        results[phase.name] = phase.execute(env=env)
+    return PipelineReport(results)
+```
+
+### Phase Taxonomy
+
+Organize test phases from fastest/cheapest to slowest/most expensive:
+
+| Phase | Speed | Cost | What It Catches |
+|-------|-------|------|----------------|
+| **Unit** | ~1 min | Free | Logic errors, type mismatches |
+| **Integration** | ~3 min | Free | Component interaction bugs |
+| **E2E (live)** | ~10 min | ~$0.50 (staging infra) | Real deployment issues, UI regressions |
+| **Regression** | ~1 min | Free | Previously-fixed bugs returning |
+| **Fuzzing** (Schemathesis) | ~5 min | Free | API contract violations, edge cases |
+| **Property-based** (Hypothesis) | ~3 min | Free | Algebraic invariant violations |
+| **Mutation** (mutmut) | ~15 min | Free | Weak assertions, undertested code paths |
+
+Cost-annotating your tiers helps teams make informed decisions about test frequency and CI integration — run cheap phases on every commit, expensive phases on PR or nightly.
+
+### Test Result Flow to KB
+
+Pipeline results should flow back into the Knowledge Database:
+
+```python
+# After pipeline execution
+for phase_name, result in report.items():
+    for test in result.tests:
+        kdb.insert_test(
+            id=test.kb_id,
+            spec_id=test.spec_id,
+            last_result="pass" if test.passed else "fail",
+            last_executed_at=datetime.now().isoformat(),
+            ...
+        )
+```
+
+### Regression Gate Pattern
+
+Run assertions and regression tests **before every build**:
+
+```python
+# Pre-build check (wired into deploy skill or CI)
+def pre_build_gate():
+    assertions = run_assertions()
+    if assertions.failures > 0:
+        raise BuildGateError(f"{assertions.failures} assertion failures")
+    regressions = run_phase("regression")
+    if regressions.failures > 0:
+        raise BuildGateError(f"{regressions.failures} regression failures")
+```
+
+This ensures no build ships with known regressions. The assertion runner (Step 2) is the first gate; the regression test phase is the second.
+
+---
+
+## Step 11: Deployment Automation
+
+For projects that deploy to cloud infrastructure, automate the build-deploy-verify pipeline and enforce governance gates.
+
+### Build-Deploy-Verify Pattern
+
+Structure deployment as three distinct phases with a governance gate between "build" and "deploy":
+
+```
+Build → [Artifacts in registry] → GOV-16 Gate → Deploy → Verify
+```
+
+```python
+# Deployment pipeline (simplified)
+def deploy(env: str, version: str, owner_approved: bool = False):
+    # Phase 1: Build
+    image_tag = build_container(version)
+    push_to_registry(image_tag)
+
+    # GOV-16 Gate
+    if not owner_approved:
+        raise DeployGateError("Owner approval required (GOV-16)")
+
+    # Phase 2: Deploy
+    update_container_app(env, image_tag)
+    wait_for_healthy(env, timeout=120)
+
+    # Phase 3: Verify
+    results = run_upgrade_verification(env)
+    record_deployment_event(env, version, results)
+    return results
+```
+
+### Environment Promotion
+
+Promote through environments with increasing verification:
+
+```
+Local tests → Staging deploy → Staging E2E → Owner approval → Production deploy → Production verification
+```
+
+Each environment gate prevents defects from propagating:
+
+| Gate | What It Checks | Blocks On |
+|------|---------------|-----------|
+| Pre-staging | Unit + integration tests | Any failure |
+| Post-staging | E2E pipeline against staging | >N failures or regression failures |
+| Pre-production | Owner approval (GOV-16) | Missing approval |
+| Post-production | Upgrade verification script | Health check or endpoint failures |
+
+### Seed Scripts for Data Bootstrapping
+
+Multi-tenant systems need deterministic data seeding:
+
+```python
+# scripts/seed_tenant.py — phased, idempotent
+PHASES = [
+    Phase(1, "core_config", seed_core_config),
+    Phase(2, "auth_keys", seed_auth_keys),
+    Phase(3, "knowledge_base", seed_knowledge_documents),
+    Phase(4, "entitlements", seed_entitlement_docs),
+    # ...
+]
+
+def seed(tenant_id: str, env: str, phases: list[int] | None = None):
+    for phase in PHASES:
+        if phases and phase.number not in phases:
+            continue
+        phase.execute(tenant_id, env)
+```
+
+Phase-based seeding lets you re-run individual phases without re-seeding everything, and makes it safe to add new phases as the system grows.
+
+### Rollback Strategy
+
+Document rollback as a first-class deployment artifact:
+
+- **Container apps:** Redeploy the previous image tag (keep last 3 tags in registry)
+- **Database migrations:** Design forward-compatible schemas (additive columns, not destructive changes)
+- **Configuration:** Version config documents in the KB; rollback = deploy previous version
+
+---
+
+## Step 12: Parallel Execution & Multi-Agent Coordination
+
+As projects grow beyond ~100 sessions, single-agent sessions become a bottleneck. Multiple AI agents can work in parallel — but only with structured coordination to prevent conflicts.
+
+### Background Agent Delegation
+
+Claude Code supports launching background agents for independent tasks while the primary session continues implementation:
+
+```
+Primary session: Implementing SPEC-1234 (writes code)
+Background agent 1: Investigating test failures (read-only research)
+Background agent 2: Exploring codebase for pattern X (read-only research)
+```
+
+**Rule:** Background agents should be **read-only** (research, exploration, analysis). Only the primary session writes code and modifies the KB. This prevents merge conflicts and ensures governance gates (GOV-01, GOV-16) are enforced by a single actor.
+
+### Loyal Opposition Model
+
+A second AI agent (different model or role) provides independent review of the primary agent's work:
+
+```
+Prime Builder (Claude Code) ←→ Message Bridge ←→ Loyal Opposition (Codex/GPT)
+```
+
+The Loyal Opposition:
+- Inspects implementation, plans, and documentation
+- Files evidence-based reports with severity ratings (P0–P3)
+- Does NOT write code or modify the KB
+- Communicates findings via structured message bridge (not shared files)
+
+This pattern catches blind spots, architectural drift, and security issues that a single-agent workflow misses. The message bridge ensures findings are structured and actionable rather than lost in conversation context.
+
+### Session Scheduler
+
+Pre-plan prompts that inject automatically at session start:
+
+```markdown
+<!-- .claude/SCHEDULE.md -->
+## Scheduled Prompts (FIFO)
+
+### Prompt 1
+Run the E2E test pipeline and report results.
+
+### Prompt 2
+Perform 5th-session audit: assertion check, MEMORY.md accuracy, procedure verification.
+```
+
+A `UserPromptSubmit` hook processes the first pending prompt, removes it from the queue, and injects it into the session. This enables unattended batch workflows — start a session, and the scheduled work executes automatically.
+
+### Declarative Parallel Work Config
+
+For complex sprints requiring multiple simultaneous work streams, define a manifest:
+
+```json
+{
+  "sprint": "BACKLOG-018",
+  "streams": [
+    {"name": "Phase 3 - Integration Framework", "agent": "primary", "priority": 1},
+    {"name": "Test infrastructure fixes", "agent": "background", "priority": 2},
+    {"name": "Security review", "agent": "loyal-opposition", "priority": 3}
+  ]
+}
+```
+
+This formalizes what most teams do ad-hoc — assigning parallel work streams to different agents with clear priority ordering and ownership boundaries.
+
+---
+
+## Lessons Learned (206 Sessions)
 
 1. **The assertion runner is the single most valuable piece.** It turns "Claude remembers" into "Claude proves." Regressions caught at session start save hours of debugging.
 
@@ -862,13 +1169,23 @@ before new work.
 
 31. **Mock E2E tests complement live tests, not replace them.** A zero-backend mock development environment (527 tests across 14 files) enables rapid UI development without API dependencies. But mock tests verify UI behavior against fixture data — they cannot catch integration failures, auth issues, or data format mismatches. Both layers are necessary: mocks for speed, live tests for truth.
 
-32. **Skills mechanize governance chains that self-discipline cannot sustain.** Multi-step workflows (create WI → create test → assign phase → add to backlog) are easy to partially execute when relying on Claude's memory. Converting these chains into Claude Code skills makes them structurally complete — the skill's instructions make each step mandatory. After 189 sessions, the pattern is clear: hooks *remind*, skills *execute*, KB procedures *record*.
+32. **Batch description enrichment using source file context.** Specs linked to source files (via assertions) can generate meaningful descriptions automatically: restate the title as a requirement, add context from the assertion's source file path. This enriched 885 NULL-description specs in one pass, achieving 92% description coverage.
 
-33. **Separate invocation control prevents autonomous side effects.** Skills with `disable-model-invocation: true` (deploy, seed, session wrap-up) cannot be triggered by Claude autonomously. Skills without it (KB queries, spec creation) can be used proactively. This distinction is critical: you want Claude to autonomously query the KB when discussing a spec, but you never want Claude to autonomously deploy to production.
+33. **Skills are prompt templates, not code.** The most valuable Claude Code skills are markdown instruction files — their power is in the prompt engineering, not executable logic. Treat skills as first-class artifacts: version them, document them in MEMORY.md, and review them for quality like any other project asset.
 
-34. **Three-layer procedure architecture reduces redundancy.** Before skills, deployment procedures existed in CLAUDE.md (brief), KB procedures (detailed), and SCHEDULE.md (checklist). After skills, CLAUDE.md says "run `/deploy`" (the rule), the skill has exact commands (the execution), and KB procedures remain the audit trail (the record). Each layer has one job.
+34. **Generic dev skills conflict with governance.** Installing toolkit skills (like gstack's `/ship` or `/review`) into a governed project bypasses spec-first, deploy-gate, and KB-aware workflows. Project-specific skills should always override generic ones. A generic `/ship` that auto-opens PRs violates GOV-16 (deployment approval gate).
 
-30. **Batch description enrichment using source file context.** Specs linked to source files (via assertions) can generate meaningful descriptions automatically: restate the title as a requirement, add context from the assertion's source file path. This enriched 885 NULL-description specs in one pass, achieving 92% description coverage.
+35. **Cost-annotate your test tiers.** Labeling each test phase with its approximate cost and duration (e.g., "E2E: ~10 min, ~$0.50 staging infra" vs "Unit: ~1 min, free") helps teams make informed decisions about which tiers to run on every commit vs nightly vs pre-release. Without cost visibility, teams either run everything (slow) or skip expensive tiers (risky).
+
+36. **Template-driven skill generation prevents drift.** For projects with many skills, a `.tmpl` → `.md` generation pipeline with CI checks ensures manual edits do not silently diverge from the canonical template. This is the skill equivalent of "generated code must match its schema" — a pattern that scales better than code review alone.
+
+37. **Data-driven rate limits outperform hardcoded tiers.** Deriving rate limits from measured capacity (ramp-to-overload testing → safe RPM per replica → uniform limit) produces a defensible number. Hardcoded per-tier limits are arbitrary and create customer friction without improving system safety. Measure first, then set policy.
+
+38. **Entitlement-as-data eliminates hardcoded tier gates.** Moving tier definitions from source code constants to a database-backed EntitlementService (with cache hierarchy: LRU → Redis → Cosmos) enables runtime configuration changes without redeployment. Every hardcoded `TIER_DEFAULTS[tier]` reference is a future incident.
+
+39. **Multi-agent coordination requires message discipline.** When multiple AI agents work on the same project (e.g., Prime Builder + Loyal Opposition), structured message passing with explicit fields (subject, body, priority, tags) prevents findings from being lost in conversation context. The Loyal Opposition must never write code — only file evidence-based reports.
+
+40. **E2E selector failures are symptoms, not root causes.** When UI tests fail because selectors don't match, the fix is updating selectors — but the root cause is usually untracked UI changes. GOV-14 (UI test sync) exists because selector maintenance is inevitable. Budget for it in every session that touches frontend code.
 
 ---
 
@@ -948,41 +1265,46 @@ Membase was not designed upfront — it evolved through real project needs. Each
 | S165–S166 | Need zero-backend UI development and testing | **Mock dev environment** + 527 mock E2E tests (SPEC-1706), zero-backend testing |
 | S169 | 5,085-line monolith file blocks team scalability | **Superadmin API split** — monolith decomposed into 5 domain submodules |
 | S173 | 74 stale assertion failures after package split | **Deep hygiene** — assertion remapping after monolith split, 17 spec retirements, 1,621/1,621 assertions passing |
-| S174–S175 | Single-tenant architecture won't scale | **680-tenant infrastructure scaling** — Redis, sharded rate limiting, 4 workers, SSE, cache invalidation, per-tier entitlements |
-| S177–S179 | Rubber-stamp tests pass without verifying behavior | **GOV-18 enforcement** — rubber-stamp tests replaced with behavioral tests |
-| S181–S183 | AI agents run in-process; can't scale independently | **AGNTCY multi-agent containerization** — 7 agent containers, NATS JetStream, fail-loud dispatch |
-| S184 | Rate limits hard-coded per tier | **Data-driven rate limiting** — ramp-to-overload testing, uniform 300 RPM, per-tier caps removed |
+| S174–S183 | Multi-agent containerization and AGNTCY SDK integration needed | **Agent containerization** — 7 agent containers, NATS JetStream, transport hierarchy (SLIM/NATS/HTTP), AGNTCY Directory, load testing |
+| S184–S185 | Rate limits arbitrary per tier; no empirical basis | **Data-driven rate limiting** — ramp-to-overload testing derived 300 RPM safe capacity, uniform limit, per-tier caps removed |
 | S187 | Specs claim "implemented" but code doesn't match | **Full spec-vs-code verification** — all 2,009 specs verified against source, 3 mismatches found |
-| S189 | Repeatable procedures exist only as prose | **Claude Code Skills** — 8 project-level skills mechanizing deployment, testing, KB management, and governance chains |
+| S190 | Repeated multi-step workflows executed manually each session | **Claude Code Skills** — 8 KB-aware skills (`/deploy`, `/seed-tenant`, `/kb-session-wrap`, `/run-tests`, `/kb-query`, `/kb-spec`, `/kb-work-item`, `/kb-promote`) |
+| S191 | Hardcoded tier gates scattered across 11 source locations | **EntitlementService** — data-driven tier config (LRU → Redis → Cosmos cache), 18 SPA Control Plane specs, feature flags |
+| S192–S196 | No runtime operational control without redeployment | **SPA Operational Control Plane** — 39 API endpoints, 9 SPA pages, entitlement CRUD, block lists, maintenance mode, deployment orchestrator |
+| S198–S201 | No systematic quality measurement beyond test counts | **Quality Measurement** — quality score API (6 metrics), Schemathesis API fuzzing (307 ops), Hypothesis property-based tests (46), mutmut mutation testing, coverage enforcement |
+| S202–S206 | 55-spec feature backlog (BACKLOG-018) requiring 6 implementation phases | **BACKLOG-018 complete** — A/B testing (5 specs), integration framework (18 specs, 402 tests), MCP agents (7 specs, 100 tests), pipeline observatory (10 specs), deferred features (9 specs). All 55 specs implemented. |
+| S204 | Multiple AI agents need structured coordination | **Prime-bridge multi-agent coordination** — Loyal Opposition (Codex) + Prime Builder (Claude Code) with structured message passing, evidence-based reports |
 
-### Current State (Session 189)
+### Current State (Session 206)
 
 | Category | Metric | Count |
 |----------|--------|-------|
-| **Specifications** | Total | 2,016 |
-| | Verified | 313 |
-| | Implemented | 1,448 |
-| | Specified (not yet implemented) | 68 |
-| | Retired | 187 |
-| | Governance (GOV-01 through GOV-18) | 21 |
-| **Tests** | Test artifacts (spec-linked) | 20,248 |
-| | Automated tests passing | 6,053 |
-| | Live E2E tests (3 admin consoles) | 936 |
-| | Mock E2E tests (zero-backend) | 527 |
-| **Work Items** | Total | 1,385 |
-| | Resolved/closed | 1,371 |
-| | Open | 14 |
-| **Assertions** | Specs with machine-verifiable assertions | 100% pass rate |
-| **Test Plan** | Active phases (live-only, SPEC-1649) | 13 |
-| | Removed phases (mocked/inspection) | 3 |
+| **Specifications** | Total | 2,052 |
+| | Verified | 331 |
+| | Implemented | 1,486 |
+| | Specified (not yet implemented) | 40 |
+| | Retired | 195 |
+| | Governance (GOV-01 through GOV-18) | 20 |
+| **Tests** | Test artifacts (spec-linked) | 10,847 |
+| | Automated tests passing | 6,920 (unit + multi-tenant + chat + integration) |
+| | Live E2E tests (3 admin consoles) | 1,050 |
+| | Property-based tests (Hypothesis) | 46 |
+| **Work Items** | Total | ~1,600 |
+| | Open | 240 |
+| **Assertions** | Specs with machine-verifiable assertions | ~2,040 (99.5% coverage) |
+| **Test Plan** | Active phases (PLAN-001) | 18 (incl. fuzzing + property phases) |
 | **Quality** | Testable elements inventoried | 520 |
-| | Quality dashboard metrics | 4 (all green) |
-| **Knowledge** | Documents under change control | 175 |
-| | Operational procedures | 17 |
-| | Governance principles | 21 (18 numbered + 3 architectural) |
-| | Backlog snapshots | 16 |
-| **Skills** | Claude Code skills (executable workflows) | 8 |
-| **Database** | Data loss incidents | 0 |
+| | Quality dashboard metrics | 6 (quality score API) |
+| | API fuzzing operations (Schemathesis) | 307 |
+| **Knowledge** | Documents under change control | 176 |
+| | Operational procedures | 14 |
+| | Governance principles | 20 (18 numbered + 2 architectural) |
+| **Skills** | Claude Code skills (KB-aware) | 8 |
+| **Infrastructure** | Production tenants | 20 |
+| | Agent containers | 7 |
+| | SPA Control Plane endpoints | 39 |
+| **Database** | Database size | ~40 MB |
+| | Data loss incidents | 0 |
 
 ### What the System Catches
 
@@ -1022,14 +1344,13 @@ Honesty about limitations: Membase does not track session duration, so there are
 - [ ] Add extended tables (tests, test_plans, work_items, documents, testable_elements) when your project grows
 - [ ] Add quality dashboard metrics to the SessionStart hook (assertion coverage, test traceability, defect velocity, escape rate)
 - [ ] Add assertion run pruning to the SessionStart hook (keep latest N per spec to prevent unbounded growth)
-- [ ] Create `.claude/skills/` directory for executable workflow skills
-- [ ] Add deployment skill (disable-model-invocation: true) wrapping your deploy procedure
-- [ ] Add test runner skill wrapping your test scripts
-- [ ] Add KB management skills to mechanize governance chains (spec creation, work item → test linking, status promotion)
-- [ ] Add session wrap-up skill (disable-model-invocation: true) encoding your end-of-session procedure
+- [ ] Create project-specific skills in `.claude/skills/` that read from and write to the KB (Step 9)
+- [ ] Create a single-entry-point test pipeline script with phase ordering (Step 10)
+- [ ] Automate deployment with build-deploy-verify pattern and GOV-16 gate (Step 11)
+- [ ] Set up multi-agent coordination if using Loyal Opposition or background agents (Step 12)
 
 ---
 
-*This pattern was developed across 189 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence) are universal.*
+*This pattern was developed across 206 sessions on the Agent Red Customer Experience project by Remaker Digital. The implementation approach is freely reusable under the MIT license. Adapt the schema to your project's needs — the core principles (append-only, machine-verifiable assertions, live-only test verification, quality dashboard, governance discipline, session handoff, audit cadence, KB-aware skills, test pipeline architecture, deployment automation, multi-agent coordination) are universal.*
 
 *© 2026 Remaker Digital, a DBA of VanDusen & Palmeter, LLC. All rights reserved.*

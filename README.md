@@ -12,7 +12,7 @@
 
 Membase is a **pattern** (not a library) for giving Claude Code durable memory that survives across sessions. It replaces fragile markdown backlogs with a structured, append-only SQLite database where every change is versioned and every claim is machine-verifiable.
 
-Developed across 189 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
+Developed across 206 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
 
 1. **Context window saturation** — long sessions accumulate stale context that biases decisions.
 2. **Session boundary amnesia** — each new session starts cold; CLAUDE.md and MEMORY.md help but drift over time.
@@ -22,7 +22,7 @@ Developed across 189 sessions on a commercial SaaS project, it solves three prob
 
 Claude is the **sole writer**. The human observes through a read-only web UI. The database stores 9 managed artifact types — specifications, tests, test plans, work items, backlog snapshots, operational procedures, documents, environment config, and testable elements — all under append-only change control. Machine-verifiable assertions (grep/glob checks against the actual codebase) run automatically at session start, catching regressions before work begins. A quality dashboard displays 4 key metrics (assertion coverage, test traceability, defect velocity, defect escape rate) at session start. A session handoff system eliminates cold-start friction by having each session store context for the next one.
 
-The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 100% machine-verifiable assertion pass rate across 1,621 assertions on 2,016 specifications (S146–S173), implementing automated assertion pruning to keep the database compact (S158), and formalizing repeatable workflows as executable Claude Code skills (S189).
+The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 99.5% machine-verifiable assertion coverage across 2,052 specifications (S146–S150), KB-aware Claude Code skills (S190), data-driven entitlement service and SPA Control Plane (S191–S196), quality measurement with fuzzing + property-based + mutation testing (S198–S201), and completing a 55-spec feature backlog with multi-agent coordination (S202–S206).
 
 ## Getting Started
 
@@ -100,7 +100,7 @@ See the [full glossary with examples](MEMBASE-4-CLAUDE.md#glossary) in the imple
 
 ## Benefits & Milestones
 
-Membase was not designed upfront — it evolved through real project needs across 189 sessions. The milestones below trace how each capability was added in response to a specific problem.
+Membase was not designed upfront — it evolved through real project needs across 206 sessions. The milestones below trace how each capability was added in response to a specific problem.
 
 ### Evolution Timeline
 
@@ -140,26 +140,31 @@ Membase was not designed upfront — it evolved through real project needs acros
 | S186 | UI bugs, stale closures, and email footer missing | **Bug fix + email refactor** — button color, auto-save stale closure, avatar 413, unsubscribe footer via `format_branded_email()` refactor (12 modules). AI-generated widget greeting. v1.88.0. |
 | S187 | Specs claim "implemented" but code doesn't match | **Full spec-vs-code verification** — all 2,009 specs verified against source. 3 mismatches found, 369 weak assertions, 7 missing specs created (SPEC-1806–1812). v1.88.1. |
 | S188 | 91 specs stuck in "specified" status | **Specified-spec triage** — 16 promoted to implemented, 7 retired, 7 WIs created for genuine gaps. Transport hierarchy clarified (SLIM required, NATS fallback, HTTP external-only). |
-| S189 | Repeatable procedures exist only as prose in KB; no executable enforcement | **Claude Code Skills** — 8 project-level skills wrapping deployment, testing, tenant seeding, and KB management workflows. Skills mechanize GOV-01/GOV-12/GOV-13 governance chains. SCHEDULE.md and CLAUDE.md wrap-up procedures refactored to delegate to skills. |
+| S190 | Repeated multi-step workflows executed manually each session | **Claude Code Skills** — 8 KB-aware skills (deploy, seed-tenant, session wrap-up, tests, queries, specs, work items, promotions) |
+| S191–S196 | Hardcoded tier gates; no runtime operational control | **SPA Control Plane** — EntitlementService (data-driven tiers), 39 API endpoints, 9 SPA pages, feature flags, deployment orchestrator |
+| S198–S201 | No systematic quality measurement | **Quality Measurement** — quality score API, Schemathesis fuzzing (307 ops), Hypothesis property-based tests, mutmut mutation testing, coverage enforcement |
+| S202–S206 | 55-spec feature backlog needing multi-phase implementation | **BACKLOG-018 complete** — A/B testing, integration framework (18 specs), MCP agents (7 specs), pipeline observatory, multi-agent coordination via prime-bridge |
 
-### Current Database (as of Session 189)
+### Current Database (as of Session 206)
 
 | Metric | Count |
 |--------|-------|
-| Specifications | 2,016 (313 verified, 1,448 implemented, 68 specified, 187 retired) |
-| Test artifacts | 20,248 (linked to specifications) |
-| Work items | 1,385 (1,371 resolved/closed, 14 open) |
-| Machine-verifiable assertions | 100% pass rate across all assertable specs |
-| Knowledge documents | 175 |
-| Operational procedures | 17 |
-| Governance principles | 21 (GOV-01 through GOV-18 + 3 architectural) |
-| Test plan phases | 13 active, 3 removed (live-only per SPEC-1649) |
+| Specifications | 2,052 (331 verified, 1,486 implemented, 40 specified, 195 retired) |
+| Test artifacts | 10,847 (linked to specifications) |
+| Work items | ~1,600 (240 open) |
+| Machine-verifiable assertions | ~2,040 specs with assertions (99.5% coverage) |
+| Knowledge documents | 176 |
+| Operational procedures | 14 |
+| Governance principles | 20 (GOV-01 through GOV-18 + 2 architectural) |
+| Test plan phases | 18 active (incl. fuzzing + property phases) |
 | Testable elements | 520 (UI component inventory for coverage tracking) |
-| Live E2E tests | 936 (across 3 admin consoles: Standalone 576, Provider 264, Shopify 96) |
-| Mock E2E tests | 527 (zero-backend UI testing across 14 test files) |
-| Backlog snapshots | 16 |
-| Automated tests passing | 6,053 (unit + multi-tenant + agents + integrations) |
-| Claude Code skills | 8 (deployment, testing, seeding, KB management) |
+| Live E2E tests | 1,050 (across 3 admin consoles) |
+| Automated tests passing | 6,920 (unit + multi-tenant + chat + integration) |
+| Claude Code skills | 8 (KB-aware, project-specific) |
+| Production tenants | 20 |
+| Agent containers | 7 |
+| SPA Control Plane endpoints | 39 |
+| Database size | ~40 MB |
 | Data loss incidents | 0 |
 
 ### What the System Catches
@@ -173,50 +178,7 @@ Membase was not designed upfront — it evolved through real project needs acros
 
 ## Skills — Executable Governance
 
-As of Session 189, the Membase pattern extends beyond the database and hooks into **Claude Code skills** — SKILL.md files that encode repeatable workflows as executable procedures.
-
-### The Problem Skills Solve
-
-Governance rules (GOV-01 through GOV-18) tell Claude *what to do*, but enforcement relied on Claude's self-discipline and hook reminders. Multi-step chains like "create work item → create linked test → assign to test plan phase → add to backlog" (GOV-12 + GOV-13) were easy to partially execute, silently dropping steps.
-
-### The Solution
-
-Skills turn prose procedures into step-by-step executable playbooks. Claude Code loads them on demand, and each skill contains the exact Python/bash commands to complete the workflow. Two invocation modes prevent accidents:
-
-- **Owner-only** (`disable-model-invocation: true`) — for destructive operations (deploy, seed, session wrap-up). Claude cannot trigger these autonomously.
-- **Auto-invocable** — for knowledge work (KB queries, spec creation, test linking). Claude uses these proactively when the conversation warrants it.
-
-### Reference Implementation: 8 Project Skills
-
-| Skill | Invocation | Purpose |
-|-------|-----------|---------|
-| `/deploy` | Owner only | Full build-deploy-verify pipeline with GOV-16 deploy gate |
-| `/seed-tenant` | Owner only | 9-phase Cosmos DB tenant provisioning |
-| `/kb-session-wrap` | Owner only | 5-phase structured session wrap-up |
-| `/run-tests` | Owner + Claude | Thermal-safe batch runner + PLAN-001 E2E pipeline |
-| `/kb-query` | Owner + Claude | Read-only Knowledge Database lookups |
-| `/kb-spec` | Owner + Claude | Guided spec creation with duplicate detection (GOV-01) |
-| `/kb-work-item` | Owner + Claude | WI → Test → Phase assignment chain (GOV-12 + GOV-13) |
-| `/kb-promote` | Owner + Claude | Assertion-gated spec status promotion |
-
-### Skill File Structure
-
-```
-.claude/skills/
-  deploy/
-    SKILL.md          # YAML frontmatter + markdown instructions
-  kb-query/
-    SKILL.md
-  kb-work-item/
-    SKILL.md
-  ...
-```
-
-Each `SKILL.md` contains YAML frontmatter (name, description, invocation control, allowed tools) followed by markdown instructions with embedded code blocks. Skills follow the [Agent Skills](https://agentskills.io) open standard.
-
-### Key Design Principle
-
-**CLAUDE.md states the rule, skills encode the execution, KB procedures are the audit trail.** This three-layer separation means rules don't need to contain implementation details, skills don't need to repeat governance rationale, and KB procedures remain the canonical historical record.
+Claude Code skills (`.claude/skills/`) encode repeatable workflows as executable playbooks. Skills mechanize governance chains (e.g., GOV-12 + GOV-13) that previously relied on Claude's self-discipline. See **Step 9: Skills Framework** in [`MEMBASE-4-CLAUDE.md`](MEMBASE-4-CLAUDE.md) for the full implementation guide, including skill anatomy, project-specific vs generic skills, template-driven generation, and the 8 reference skills.
 
 ## Why Not Just Use Markdown?
 
@@ -237,7 +199,7 @@ This pattern was developed incrementally on the [Agent Red Customer Experience](
 
 The database is used exclusively by Claude and contains only what Claude needs to remember. The human observes through a lightweight read-only UI (sort, filter, search, tree-view, change history) that deliberately excludes write operations. When the human spots a discrepancy, they tell Claude, and Claude creates a corrected version.
 
-The current database contains 2,016 specifications, 20,248 test artifacts, 1 test plan (13 active phases, 3 removed), 1,385 work items (14 open), 17 operational procedures, 175 documents, 520 testable elements, and machine-verifiable assertions at 100% pass rate — all accumulated across 189 sessions with zero data loss. Session 189 introduced 8 Claude Code skills that mechanize governance workflows as executable playbooks.
+The current database is ~40 MB with 2,052 specifications, 10,847 test artifacts, 1 test plan (18 active phases), ~1,600 work items, 14 operational procedures, 176 documents, 520 testable elements, ~2,040 specs with machine-verifiable assertions (99.5% coverage), 8 KB-aware Claude Code skills, and multi-agent coordination via prime-bridge — all accumulated across 206 sessions with zero data loss.
 
 ---
 
