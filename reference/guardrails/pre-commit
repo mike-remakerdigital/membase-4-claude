@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Git pre-commit hook — Quality Guardrails
+#
+# Runs checks before every commit. If any check fails, the commit is rejected.
+#
+# Install:
+#   cp reference/guardrails/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+#
+# Or symlink:
+#   ln -s ../../reference/guardrails/pre-commit .git/hooks/pre-commit
+#
+# Bypass: git commit --no-verify (requires owner approval)
+#   Note: The destructive-gate.py PreToolUse hook blocks --no-verify,
+#   creating a layered defense against bypass.
+#
+# Part of the Membase for Claude reference implementation.
+# See: https://github.com/mike-remakerdigital/membase-4-claude
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# When installed as .git/hooks/pre-commit, project root is two dirs up.
+# When run from reference/guardrails/, project root is also two dirs up.
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Guardrails directory — adjust if you move the scripts
+GUARDRAILS_DIR="$PROJECT_ROOT/reference/guardrails"
+if [ ! -d "$GUARDRAILS_DIR" ]; then
+    # Fallback: scripts/guardrails/ (common alternative location)
+    GUARDRAILS_DIR="$PROJECT_ROOT/scripts/guardrails"
+fi
+
+EXIT_CODE=0
+
+echo "Running quality guardrails..."
+
+# 1. Test file deletion guard (fastest check — do first)
+if python3 "$GUARDRAILS_DIR/check_test_deletion.py"; then
+    echo "  [PASS] Test deletion guard"
+else
+    echo "  [FAIL] Test deletion guard"
+    EXIT_CODE=1
+fi
+
+# 2. Assertion count ratchet
+if python3 "$GUARDRAILS_DIR/check_assertion_ratchet.py"; then
+    echo "  [PASS] Assertion ratchet"
+else
+    echo "  [FAIL] Assertion ratchet"
+    EXIT_CODE=1
+fi
+
+# Add more checks here as needed:
+# 3. Architectural grep guards (project-specific — see MEMBASE-4-CLAUDE.md Step 13)
+# if python3 "$GUARDRAILS_DIR/check_arch_guards.py"; then
+#     echo "  [PASS] Architectural guards"
+# else
+#     echo "  [FAIL] Architectural guards"
+#     EXIT_CODE=1
+# fi
+
+# 4. Traced-commit gate (e.g., require SPEC-ID for .tsx files)
+# if python3 "$GUARDRAILS_DIR/check_traced_commit.py"; then
+#     echo "  [PASS] Traced commit gate"
+# else
+#     echo "  [FAIL] Traced commit gate"
+#     EXIT_CODE=1
+# fi
+
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "Commit blocked by quality guardrails."
+    echo "Fix the issues above, or get owner approval to bypass."
+fi
+
+exit $EXIT_CODE
