@@ -1,6 +1,6 @@
-# Membase Operating Model
+# GroundTruth Operating Model
 
-Membase is designed to bootstrap a three-party development system:
+GroundTruth is designed to bootstrap a three-party development system:
 
 - Prime Builder: proposes and implements approved changes
 - Loyal Opposition: challenges proposals and completed work with evidence

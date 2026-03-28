@@ -1,5 +1,5 @@
 """
-Membase Reference — Read-only Web Dashboard
+GroundTruth Reference — Read-only Web Dashboard
 
 Strictly read-only: no forms, no POST endpoints, no edit buttons.
 All writes come from the AI assistant via the Python API.
@@ -157,7 +157,7 @@ def history():
 # ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Membase Knowledge DB Web UI")
+    parser = argparse.ArgumentParser(description="GroundTruth Knowledge DB Web UI")
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         print(f"  Run 'python reference/seed.py' first to create it.\n")
         sys.exit(1)
 
-    print(f"\n  Membase Knowledge DB: http://{args.host}:{port}")
+    print(f"\n  GroundTruth Knowledge DB: http://{args.host}:{port}")
     print(f"  Database: {DB_PATH}\n")
 
     app.run(host=args.host, port=port, debug=True)

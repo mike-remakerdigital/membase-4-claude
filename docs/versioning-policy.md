@@ -1,6 +1,6 @@
 # Versioning Policy
 
-Membase uses semantic versions.
+GroundTruth uses semantic versions.
 
 ## Major
 

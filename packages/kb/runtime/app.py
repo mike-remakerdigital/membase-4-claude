@@ -144,14 +144,14 @@ def serve(
         return 1
 
     app = create_app(db_path=resolved_db)
-    print(f"Membase KB: http://{host}:{port}")
+    print(f"GroundTruth KB: http://{host}:{port}")
     print(f"Database: {resolved_db}")
     app.run(host=host, port=port, debug=debug)
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Serve the Membase KB web dashboard")
+    parser = argparse.ArgumentParser(description="Serve the GroundTruth KB web dashboard")
     parser.add_argument("--db", default=None, help="Explicit KB database path")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8090)

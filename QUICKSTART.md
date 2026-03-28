@@ -1,7 +1,10 @@
-# Membase Quickstart Guide
+# GroundTruth Quickstart Guide
 
 This quickstart starts with the installable platform path and keeps the older
 reference implementation path as a fallback.
+
+GroundTruth is the public product name. During the transition, the CLI remains
+`membase` and the manifest remains `membase.project.json`.
 
 Get a working knowledge database in under 5 minutes.
 
@@ -63,7 +66,7 @@ implementation directly.
 ### 1. Set Up the Database
 
 ```bash
-cd membase-4-claude
+cd groundtruth
 python reference/seed.py
 ```
 

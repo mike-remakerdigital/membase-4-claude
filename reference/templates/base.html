@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Membase{% endblock %} — Knowledge DB</title>
+    <title>{% block title %}GroundTruth{% endblock %} — Knowledge DB</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <nav class="topnav">
-        <a href="/" class="brand">Membase</a>
+        <a href="/" class="brand">GroundTruth</a>
         <div class="nav-links">
             <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
             <a href="/specs" {% if '/specs' in request.path %}class="active"{% endif %}>Specs</a>
@@ -21,7 +21,7 @@
         {% block content %}{% endblock %}
     </main>
     <footer>
-        <p>Membase Knowledge Database &mdash; Read-only UI</p>
+        <p>GroundTruth Knowledge Database &mdash; Read-only UI</p>
     </footer>
 </body>
 </html>

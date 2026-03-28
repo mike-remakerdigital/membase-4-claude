@@ -1,6 +1,6 @@
-# Membase v1 Overview
+# GroundTruth v1 Overview
 
-Membase is transitioning from a pattern/reference repository into an installable bootstrap platform.
+GroundTruth is the public product name for the platform previously labeled Membase. It is transitioning from a pattern/reference repository into an installable bootstrap platform.
 
 The v1 platform contract has four immediate goals:
 

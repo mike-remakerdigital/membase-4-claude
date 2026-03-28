@@ -133,7 +133,7 @@ def run_doctor(_args: argparse.Namespace) -> int:
         check_command("codex", ["codex"], False),
     ]
 
-    print(f"Membase doctor ({VERSION})")
+    print(f"GroundTruth doctor ({VERSION})")
     print("")
     failures = 0
     for check in checks:
@@ -201,7 +201,7 @@ def run_init(args: argparse.Namespace) -> int:
     )
     copied = install_runtime(target_dir, force=args.force)
 
-    print(f"Initialized Membase project scaffold at {target_dir}")
+    print(f"Initialized GroundTruth project scaffold at {target_dir}")
     print(f"Manifest: {project_manifest_path(target_dir)}")
     print(f"KB runtime: {kb_dir(target_dir)}")
     print(f"Workflow scaffold files copied: {len(scaffolded)}")
@@ -223,7 +223,7 @@ def run_status(args: argparse.Namespace) -> int:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     db_path = kb_db_path(base_path)
     runtime_path = kb_dir(base_path)
-    print("Membase project status")
+    print("GroundTruth project status")
     print("")
     print(f"Project:          {payload.get('display_name', '')}")
     print(f"Slug:             {payload.get('project_slug', '')}")
@@ -320,13 +320,13 @@ def run_kb_serve(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Membase bootstrap platform CLI")
+    parser = argparse.ArgumentParser(description="GroundTruth bootstrap platform CLI (compatible command: membase)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     doctor = subparsers.add_parser("doctor", help="Check local prerequisites")
     doctor.set_defaults(func=run_doctor)
 
-    init = subparsers.add_parser("init", help="Create a new Membase project scaffold")
+    init = subparsers.add_parser("init", help="Create a new GroundTruth project scaffold")
     init.add_argument("project_name", help="Display name for the new project")
     init.add_argument("--dest", default=".", help="Parent directory for the new project")
     init.add_argument("--force", action="store_true", help="Write scaffold files into a non-empty target")
@@ -336,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--path", default=".", help="Project root path")
     status.set_defaults(func=run_status)
 
-    kb = subparsers.add_parser("kb", help="Manage the Membase knowledge base runtime")
+    kb = subparsers.add_parser("kb", help="Manage the GroundTruth knowledge base runtime")
     kb_subparsers = kb.add_subparsers(dest="kb_command", required=True)
 
     kb_init = kb_subparsers.add_parser("init", help="Install or refresh the KB runtime in a project")

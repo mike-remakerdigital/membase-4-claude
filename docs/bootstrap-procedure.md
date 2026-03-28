@@ -1,6 +1,6 @@
 # Bootstrap Procedure
 
-Use this when evaluating whether a new project can adopt Membase as a real platform rather than a pattern document.
+Use this when evaluating whether a new project can adopt GroundTruth as a real platform rather than a pattern document.
 
 ## 1. Initialize
 

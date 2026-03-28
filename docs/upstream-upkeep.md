@@ -1,12 +1,12 @@
 # Upstream Upkeep Workflow
 
-Membase is the upstream-managed platform repo. Agent Red is the proving ground.
+GroundTruth is the upstream-managed platform repo. Agent Red is the proving ground.
 Reusable improvements should move upstream on purpose, not by accident.
 
 ## Cadence
 
 - Run an upstream scan whenever Agent Red lands a meaningful infrastructure change.
-- Do a broader consolidation pass before cutting any Membase release.
+- Do a broader consolidation pass before cutting any GroundTruth release.
 
 ## Source-to-upstream map
 
@@ -24,7 +24,7 @@ Reusable improvements should move upstream on purpose, not by accident.
    - downstream-specific product logic
    - experiment or temporary mitigation
 3. Promote only the reusable slice.
-4. Verify the promoted slice in a throwaway Membase-generated project before closing the patch.
+4. Verify the promoted slice in a throwaway GroundTruth-generated project before closing the patch.
 
 ## Suggested commands
 

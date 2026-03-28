@@ -1,10 +1,10 @@
 # Managed File Contract
 
-Membase uses three ownership classes.
+GroundTruth uses three ownership classes.
 
 ## Upstream-managed
 
-These files are owned by the platform and may be updated by future Membase releases:
+These files are owned by the platform and may be updated by future GroundTruth releases:
 
 - platform CLI
 - manifest schema
