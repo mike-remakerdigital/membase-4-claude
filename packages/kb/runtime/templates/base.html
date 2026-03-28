@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Membase Knowledge DB{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="topnav">
+    <a href="{{ url_for('dashboard') }}" class="brand">Membase KB</a>
+    <div class="nav-links">
+      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="{{ url_for('specs_list') }}" class="{% if request.endpoint in ['specs_list', 'spec_detail'] %}active{% endif %}">Specs</a>
+      <a href="{{ url_for('assertions') }}" class="{% if request.endpoint == 'assertions' %}active{% endif %}">Assertions</a>
+      <a href="{{ url_for('ops_list') }}" class="{% if request.endpoint in ['ops_list', 'op_detail'] %}active{% endif %}">Ops</a>
+      <a href="{{ url_for('history') }}" class="{% if request.endpoint == 'history' %}active{% endif %}">History</a>
+    </div>
+  </nav>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    Read-only knowledge base dashboard. Write operations stay in the managed runtime.
+  </footer>
+</body>
+</html>

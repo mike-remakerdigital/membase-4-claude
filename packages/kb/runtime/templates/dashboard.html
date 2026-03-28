@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="card-grid">
+  <div class="card">
+    <h3>Current Specs</h3>
+    <div class="big-number">{{ summary.spec_total }}</div>
+    <div class="card-detail">
+      <span class="status-verified">Verified: {{ summary.spec_verified }}</span>
+      <span class="status-implemented">Implemented: {{ summary.spec_implemented }}</span>
+      <span class="status-specified">Specified: {{ summary.spec_specified }}</span>
+      <span class="status-retired">Retired: {{ summary.spec_retired }}</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Assertion Coverage</h3>
+    <div class="big-number">{{ summary.assertions_passed }}/{{ summary.assertions_total }}</div>
+    <div class="card-detail">
+      <span class="pass">Passed: {{ summary.assertions_passed }}</span>
+      <span class="fail">Failed: {{ summary.assertions_failed }}</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Operational Procedures</h3>
+    <div class="big-number">{{ summary.op_procedure_total }}</div>
+  </div>
+
+  <div class="card">
+    <h3>Pending Session Prompts</h3>
+    <div class="big-number">{{ summary.session_prompt_pending }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Recent Changes</h2>
+  {% if recent %}
+  <table>
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Table</th>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Version</th>
+        <th>By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in recent %}
+      <tr>
+        <td>{{ item.changed_at }}</td>
+        <td>{{ item.table_name }}</td>
+        <td>{{ item.record_id }}</td>
+        <td>{{ item.title }}</td>
+        <td>{{ item.version }}</td>
+        <td>{{ item.changed_by }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No KB changes recorded yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

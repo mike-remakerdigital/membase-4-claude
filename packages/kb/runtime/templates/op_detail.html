@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ proc.id }} - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>{{ proc.id }} - {{ proc.title }}</h1>
+
+<div class="meta-bar">
+  <span>Version: {{ proc.version }}</span>
+  <span>Trigger: {{ proc.trigger or 'n/a' }}</span>
+  <span>Scope: {{ proc.scope or 'n/a' }}</span>
+</div>
+
+{% if proc.description %}
+<div class="card">
+  <h2>Description</h2>
+  <p>{{ proc.description }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Steps</h2>
+  {% if proc._steps_parsed %}
+  <ol>
+    {% for step in proc._steps_parsed %}
+    <li>{{ step }}</li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">No structured steps recorded.</p>
+  {% endif %}
+</div>
+{% endblock %}

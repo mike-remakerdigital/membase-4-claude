@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Assertions - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>Assertions</h1>
+
+{% if runs %}
+<table>
+  <thead>
+    <tr>
+      <th>Spec</th>
+      <th>Title</th>
+      <th>Run at</th>
+      <th>Status</th>
+      <th>Trigger</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td><a href="{{ url_for('spec_detail', spec_id=run.spec_id) }}">{{ run.spec_id }}</a></td>
+      <td>{{ run.spec_title }}</td>
+      <td>{{ run.run_at }}</td>
+      <td class="{{ pass_fail_class(run.overall_passed) }}">{{ "PASS" if run.overall_passed else "FAIL" }}</td>
+      <td>{{ run.triggered_by }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No assertion runs yet. Run <code>membase kb verify</code> first.</p>
+{% endif %}
+{% endblock %}

@@ -1,56 +1,97 @@
 # Membase Quickstart Guide
 
+This quickstart starts with the installable platform path and keeps the older
+reference implementation path as a fallback.
+
 Get a working knowledge database in under 5 minutes.
 
 ## Prerequisites
 
 - Python 3.10+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
-- Flask (`pip install flask`) — only for the web dashboard
+- Flask (`pip install Flask`) for the dashboard
 
-## 1. Set Up the Database
+## Platform Path
 
-Copy the `reference/` directory into your project, or work directly from this repo:
+Initialize a new project:
 
 ```bash
-# Option A: Copy into your project
-cp -r reference/ /path/to/your/project/knowledge-db/
-
-# Option B: Work from this repo
-cd membase-4-claude
+python -m cli.membase init "Example Project" --dest .
 ```
 
-Seed the database with example data:
+Seed and verify the managed KB layer:
 
 ```bash
+python -m cli.membase kb seed --path ./example-project
+python -m cli.membase kb verify --path ./example-project
+```
+
+Start the dashboard:
+
+```bash
+python -m cli.membase kb serve --path ./example-project
+```
+
+This creates:
+
+- `membase.project.json`
+- `.claude/settings.project.json`
+- `.mcp.project.json`
+- `.claude/hooks/assertion-check.py`
+- `.claude/hooks/spec-classifier.py`
+- `.claude/rules/`
+- `docs/specs/`
+- `docs/tests/`
+- `docs/evidence/`
+- `docs/runbooks/`
+- `memory/handoffs/`
+- `tools/knowledge-db/` managed runtime files
+- `tools/knowledge-db/knowledge.db`
+
+Review these immediately after bootstrap:
+
+- `CLAUDE.md`
+- `.claude/rules/transaction-protocol.md`
+- `.claude/rules/stage-0-artifact-sweep.md`
+- `docs/runbooks/bootstrap-checklist.md`
+
+## Reference Path
+
+If you want the original pattern as a runnable example, use the `reference/`
+implementation directly.
+
+### 1. Set Up the Database
+
+```bash
+cd membase-4-claude
 python reference/seed.py
 ```
 
-This creates `reference/knowledge.db` with 7 example specs, 2 operational procedures, and a session handoff prompt.
+This creates `reference/knowledge.db` with 7 example specs, 2 operational
+procedures, and a session handoff prompt.
 
-## 2. Run Assertions
+### 2. Run Assertions
 
 ```bash
 python reference/assertions.py
 ```
 
-The assertions check the reference files themselves — you should see PASS results for verified/implemented specs and expected FAILs for specified-only specs.
-
 CLI flags:
-- `--pre-build` — exit code 1 on any failure (CI gate)
-- `--session-start` — used by the SessionStart hook
-- `--spec SPEC-001` — run assertions for a single spec
 
-## 3. Start the Web Dashboard
+- `--pre-build` for CI gating
+- `--session-start` for session-start checks
+- `--spec SPEC-001` to run a single spec
+
+### 3. Start the Web Dashboard
 
 ```bash
-pip install flask
 python reference/app.py
 ```
 
-Open http://localhost:8090 — you'll see the knowledge database with specs, assertion results, procedures, and change history.
+Open http://localhost:8090 to inspect specs, assertion results, procedures, and
+change history.
 
-## 4. Configure Claude Code Hooks
+### 4. Configure Claude Code Hooks
 
 Copy the hook settings into your project's `.claude/settings.local.json`:
 
@@ -75,45 +116,23 @@ Copy the hook settings into your project's `.claude/settings.local.json`:
 }
 ```
 
-**SessionStart hook** runs assertions automatically at the start of every session and injects results as context. It also reads any pending session handoff prompts.
-
-**UserPromptSubmit hook** detects specification language ("must include", "should support", numbered requirements) and reminds Claude to record specs before implementing.
-
-## 5. Add to CLAUDE.md
-
-Add these lines to your project's `CLAUDE.md`:
+### 5. Add to CLAUDE.md
 
 ```markdown
 ### Knowledge Database
 
 All project knowledge lives in the Knowledge Database (`reference/knowledge.db`).
-Use the Python API (`reference/db.py`) — never edit SQLite directly.
+Use the Python API (`reference/db.py`) and never edit SQLite directly.
 Web UI: http://localhost:8090
-
-Key methods:
-- `db.insert_spec()` — record a new specification
-- `db.update_spec()` — create a new version of an existing spec
-- `db.insert_op_procedure()` — record an operational procedure
-- `db.insert_session_prompt()` — store context for the next session
-
-Workflow: Specification → Implementation → Assertion → Verification
 ```
 
-## 6. Start Using It
+## Common Operations
 
-In your next Claude Code session:
+Record a new specification:
 
-```
-Read reference/db.py and understand the Knowledge Database API.
-Then read the existing specs with db.list_specs().
-```
-
-### Common Operations
-
-**Record a new specification:**
 ```python
 db.insert_spec(
-    spec_id="SPEC-010",
+    id="SPEC-010",
     title="User authentication via API key",
     description="The system must authenticate API requests via bearer token.",
     spec_type="requirement",
@@ -127,12 +146,19 @@ db.insert_spec(
 )
 ```
 
-**Update a spec (creates a new version):**
+Update a spec and create a new version:
+
 ```python
-db.update_spec("SPEC-010", status="implemented")
+db.update_spec(
+    "SPEC-010",
+    changed_by="claude",
+    change_reason="implementation complete",
+    status="implemented",
+)
 ```
 
-**Record a session handoff:**
+Store a session handoff:
+
 ```python
 db.insert_session_prompt(
     session_id="S005",
@@ -141,28 +167,10 @@ db.insert_session_prompt(
 )
 ```
 
-**Run assertions programmatically:**
-```python
-from assertions import run_all_assertions
-summary = run_all_assertions(db, triggered_by="manual")
-print(f"Passed: {summary['passed']}, Failed: {summary['failed']}")
-```
-
-## Scaling Up
-
-When your project outgrows 4 tables, add more artifact types:
-
-1. **Tests** — link test artifacts to specifications for traceability
-2. **Work items** — track implementation tasks with origin/component taxonomy
-3. **Documents** — store long-form knowledge under change control
-4. **Environment config** — manage deployment-specific settings
-
-See [MEMBASE-4-CLAUDE.md](MEMBASE-4-CLAUDE.md) for the full 9-table pattern.
-
 ## Key Principles
 
-1. **Append-only** — never UPDATE or DELETE versioned artifacts. Every change creates a new version.
-2. **Machine-verifiable** — attach grep/glob assertions to specs. "Claude remembers" becomes "Claude proves."
-3. **Claude writes, human observes** — all mutations through the Python API, not through SQLite directly.
-4. **Session handoff** — store context for the next session to eliminate cold-start friction.
-5. **Pruning is for telemetry, not artifacts** — assertion runs can be pruned; specs and procedures cannot.
+1. Append-only versioning: never update or delete versioned artifacts in place.
+2. Machine-verifiable assertions: attach grep and glob checks to important specs.
+3. Builder, opposition, and human operator are separate roles with different responsibilities.
+4. Stage 0 matters: sweep governing artifacts before proposal work starts.
+5. Session handoff: store context for the next session instead of relying on memory.

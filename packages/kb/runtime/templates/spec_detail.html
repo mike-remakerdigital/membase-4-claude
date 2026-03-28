@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ spec.id }} - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>{{ spec.id }} - {{ spec.title }}</h1>
+
+<div class="meta-bar">
+  <span class="{{ status_class(spec.status) }}">{{ spec.status }}</span>
+  <span>Type: {{ spec.type }}</span>
+  <span>Version: {{ spec.version }}</span>
+  <span>Changed by: {{ spec.changed_by }}</span>
+</div>
+
+{% if spec.description %}
+<div class="card">
+  <h2>Description</h2>
+  <p>{{ spec.description }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Latest Assertion Run</h2>
+  {% if assertion_run %}
+  <p class="{{ pass_fail_class(assertion_run.overall_passed) }}">
+    {{ "PASS" if assertion_run.overall_passed else "FAIL" }} at {{ assertion_run.run_at }}
+  </p>
+  {% if assertion_run._results_parsed %}
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Description</th>
+        <th>Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in assertion_run._results_parsed %}
+      <tr>
+        <td class="{{ pass_fail_class(result.passed) }}">{{ "PASS" if result.passed else "FAIL" }}</td>
+        <td>{{ result.description }}</td>
+        <td>{{ result.detail }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% else %}
+  <p class="muted">No assertion runs recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Version History</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Version</th>
+        <th>Status</th>
+        <th>Changed at</th>
+        <th>Changed by</th>
+        <th>Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in history %}
+      <tr>
+        <td>{{ item.version }}</td>
+        <td class="{{ status_class(item.status) }}">{{ item.status }}</td>
+        <td>{{ item.changed_at }}</td>
+        <td>{{ item.changed_by }}</td>
+        <td>{{ item.change_reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

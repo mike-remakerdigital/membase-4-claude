@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Specs - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>Specifications</h1>
+
+<form class="filter-bar" method="get">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for option in statuses %}
+    <option value="{{ option }}" {% if filters.status == option %}selected{% endif %}>{{ option }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="search" placeholder="Search title or description" value="{{ filters.search or '' }}">
+  <button type="submit">Filter</button>
+  <a class="clear-link" href="{{ url_for('specs_list') }}">Clear</a>
+</form>
+
+{% if specs %}
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Title</th>
+      <th>Status</th>
+      <th>Type</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for spec in specs %}
+    <tr>
+      <td><a href="{{ url_for('spec_detail', spec_id=spec.id) }}">{{ spec.id }}</a></td>
+      <td>{{ spec.title }}</td>
+      <td class="{{ status_class(spec.status) }}">{{ spec.status }}</td>
+      <td>{{ spec.type }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No specifications matched the current filters.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Operational Procedures - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>Operational Procedures</h1>
+
+{% if procedures %}
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Title</th>
+      <th>Trigger</th>
+      <th>Scope</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for procedure in procedures %}
+    <tr>
+      <td><a href="{{ url_for('op_detail', proc_id=procedure.id) }}">{{ procedure.id }}</a></td>
+      <td>{{ procedure.title }}</td>
+      <td>{{ procedure.trigger }}</td>
+      <td>{{ procedure.scope }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No operational procedures recorded yet.</p>
+{% endif %}
+{% endblock %}

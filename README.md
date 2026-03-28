@@ -1,16 +1,23 @@
 # Membase for Claude
 
-**Persistent, version-controlled, self-auditing project memory for Claude Code — backed by an append-only SQLite database.**
+**Bootstrap platform for Claude/Codex-driven development projects, with the persistent knowledge database pattern at its core.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Claude Code needed a project knowledge database, so it built one.
+> Claude Code needed a project knowledge database, then the surrounding project infrastructure had to become reusable too.
 
 ---
 
 ## What This Is
 
-Membase is a **pattern** (not a library) for giving Claude Code durable memory that survives across sessions. It replaces fragile markdown backlogs with a structured, append-only SQLite database where every change is versioned and every claim is machine-verifiable.
+Membase is evolving from a **pattern/reference repository** into an **installable bootstrap platform** for projects that want the same operating model used to build Agent Red: durable knowledge storage, builder/opposition workflow configuration, bridge coordination, and eventually cloud delivery scaffolding.
+
+Today, this repo contains both:
+
+1. the original reference implementation under [`reference/`](reference/), and
+2. the first installable platform slice: a real `membase` CLI, richer project manifest, reusable KB runtime under [`packages/kb/`](packages/kb/), and generated workflow scaffold under [`packages/platform/`](packages/platform/).
+
+The persistent knowledge database remains the core of the platform. It replaces fragile markdown backlogs with a structured, append-only SQLite database where every change is versioned and every claim is machine-verifiable.
 
 Developed across 212 sessions on a commercial SaaS project, it solves three problems that emerge in long-running Claude Code projects:
 
@@ -24,6 +31,37 @@ Claude is the **sole writer**. The human observes through a read-only web UI. Th
 
 The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they store rules, preferences, and operational patterns that don't fit a relational model. The database complements them with formal artifacts and machine-verifiable truth. The governance principle is simple: **if Claude references something, it must exist; if it exists, it must be under change control; if it's under change control, its history must be retrievable.** Key milestones include converting the entire Master Test Plan to live-only external interface testing (S133), achieving 99.5% machine-verifiable assertion coverage across 2,052 specifications (S146–S150), KB-aware Claude Code skills (S190), data-driven entitlement service and SPA Control Plane (S191–S196), quality measurement with fuzzing + property-based + mutation testing (S198–S201), and completing a 55-spec feature backlog with multi-agent coordination (S202–S206).
 
+## Platform Preview
+
+The repo now includes a working M0/M1 bootstrap flow:
+
+```bash
+python -m cli.membase doctor
+python -m cli.membase init "Example Project"
+python -m cli.membase kb seed --path ./example-project
+python -m cli.membase kb verify --path ./example-project
+python -m cli.membase kb serve --path ./example-project
+python -m cli.membase status --path ./example-project
+```
+
+Or, after installation:
+
+```bash
+membase doctor
+membase init "Example Project"
+membase kb seed --path ./example-project
+membase kb verify --path ./example-project
+```
+
+`membase init` now installs a managed copy of the KB runtime into `tools/knowledge-db/` inside the generated project and scaffolds the first builder/opposition workflow assets:
+
+- configured SessionStart and UserPromptSubmit hook files
+- rule files for Stage 0, transaction flow, and session handoff
+- starter docs for specs, tests, evidence, and runbooks
+- handoff storage under `memory/handoffs/`
+
+This does not replace the `reference/` implementation yet, but it moves the repo materially closer to a ready-to-use platform instead of documentation-only guidance.
+
 ## Getting Started
 
 ### Prerequisites
@@ -35,6 +73,34 @@ The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they sto
 
 ### Usage
 
+### Platform-first flow
+
+```bash
+python -m cli.membase init "Example Project" --dest .
+python -m cli.membase kb seed --path ./example-project
+python -m cli.membase kb verify --path ./example-project
+python -m cli.membase kb serve --path ./example-project
+```
+
+That produces a generated project with:
+
+- `membase.project.json`
+- `.claude/settings.project.json`
+- `.mcp.project.json`
+- `.claude/hooks/`
+- `.claude/rules/`
+- `docs/specs/`
+- `docs/tests/`
+- `docs/evidence/`
+- `docs/runbooks/`
+- `memory/handoffs/`
+- `tools/knowledge-db/` managed runtime files
+- `tools/knowledge-db/knowledge.db`
+
+Use this path when you want a real project scaffold that can later absorb upstream platform updates.
+
+### Reference pattern flow
+
 1. Download [`MEMBASE-4-CLAUDE.md`](MEMBASE-4-CLAUDE.md) into your project
 2. Ask Claude to read it:
 
@@ -42,7 +108,27 @@ The markdown files (CLAUDE.md, MEMORY.md, topic files) still matter — they sto
 Read MEMBASE-4-CLAUDE.md and set up the Membase knowledge database for this project.
 ```
 
-That's it. The file contains the complete implementation pattern — schema, API, assertion runner, session hooks, governance principles, and web UI — with enough detail for Claude to reproduce it and adapt it to your project.
+That file still contains the complete reference pattern — schema, API, assertion runner, session hooks, governance principles, and web UI — with enough detail for Claude to reproduce it and adapt it to your project.
+
+### Platform flow
+
+The installable platform path is being built in this repo in parallel. Its first structural pieces are:
+
+- [`pyproject.toml`](pyproject.toml)
+- [`cli/`](cli/)
+- [`manifests/`](manifests/)
+- [`packages/`](packages/)
+- [`templates/`](templates/)
+- [`docs/`](docs/)
+
+Key docs:
+
+- [`docs/00-overview.md`](docs/00-overview.md)
+- [`docs/operating-model.md`](docs/operating-model.md)
+- [`docs/bootstrap-procedure.md`](docs/bootstrap-procedure.md)
+- [`docs/managed-files.md`](docs/managed-files.md)
+- [`docs/versioning-policy.md`](docs/versioning-policy.md)
+- [`docs/upstream-upkeep.md`](docs/upstream-upkeep.md)
 
 ## Commit-Everything Policy
 
@@ -56,22 +142,27 @@ This prevents core artifacts from living only on disk.
 ## Quick Start
 
 ```bash
-# Seed example data, run assertions, start web UI
-python reference/seed.py
-python reference/assertions.py
-pip install flask && python reference/app.py
+# Platform path
+python -m cli.membase init "Example Project" --dest .
+python -m cli.membase kb seed --path ./example-project
+python -m cli.membase kb verify --path ./example-project
 ```
 
-See [`QUICKSTART.md`](QUICKSTART.md) for the full walkthrough including hook configuration and CLAUDE.md integration.
+See [`QUICKSTART.md`](QUICKSTART.md) for both the platform quickstart and the older reference walkthrough.
 
 ## What's in This Repo
 
 | File | Purpose |
 |------|---------|
-| [`MEMBASE-4-CLAUDE.md`](MEMBASE-4-CLAUDE.md) | Complete implementation guide (the pattern document Claude reads) |
-| [`QUICKSTART.md`](QUICKSTART.md) | 5-minute bootstrap guide |
-| [`reference/`](reference/) | Runnable reference implementation — 4 core tables, assertions, hooks, web UI |
-| [`README.md`](README.md) | This file — context and motivation |
+| [`MEMBASE-4-CLAUDE.md`](MEMBASE-4-CLAUDE.md) | Complete implementation guide for the original pattern |
+| [`QUICKSTART.md`](QUICKSTART.md) | Platform quickstart plus reference fallback |
+| [`reference/`](reference/) | Runnable reference implementation |
+| [`cli/`](cli/) | Platform CLI (`doctor`, `init`, `status`, `kb ...`) |
+| [`manifests/`](manifests/) | Project manifest schema |
+| [`packages/`](packages/) | Extracted platform modules, including the KB runtime and workflow scaffold |
+| [`templates/`](templates/) | Template roots for generated project content |
+| [`docs/`](docs/) | Platform docs for operating model, bootstrap, ownership, versioning, and upstream upkeep |
+| [`README.md`](README.md) | This file |
 | [`LICENSE`](LICENSE) | MIT License |
 
 ## Glossary of Key Terms

@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://membase.dev/schemas/membase.project.schema.json",
+  "title": "Membase Project Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "platform_version",
+    "project_slug",
+    "display_name",
+    "workspace_os",
+    "cloud",
+    "repos",
+    "agents",
+    "workflow",
+    "bridge",
+    "evidence_surfaces",
+    "session_handoff",
+    "managed_modules",
+    "overrides",
+    "knowledge_base"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "platform_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "project_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string"
+    },
+    "workspace_os": {
+      "type": "string"
+    },
+    "cloud": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "subscription_name",
+        "resource_group_prefix",
+        "location"
+      ],
+      "properties": {
+        "provider": { "type": "string" },
+        "subscription_name": { "type": "string" },
+        "resource_group_prefix": { "type": "string" },
+        "location": { "type": "string" }
+      }
+    },
+    "repos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "git_remote",
+        "github_org",
+        "github_repo"
+      ],
+      "properties": {
+        "git_remote": { "type": "string" },
+        "github_org": { "type": "string" },
+        "github_repo": { "type": "string" }
+      }
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claude_enabled",
+        "codex_enabled",
+        "bridge_enabled"
+      ],
+      "properties": {
+        "claude_enabled": { "type": "boolean" },
+        "codex_enabled": { "type": "boolean" },
+        "bridge_enabled": { "type": "boolean" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "human_operator_required",
+        "pre_proposal_artifact_sweep",
+        "stages"
+      ],
+      "properties": {
+        "model": { "type": "string" },
+        "human_operator_required": { "type": "boolean" },
+        "pre_proposal_artifact_sweep": { "type": "boolean" },
+        "stages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    },
+    "bridge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "transport",
+        "message_contract"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "transport": { "type": "string" },
+        "message_contract": { "type": "string" }
+      }
+    },
+    "evidence_surfaces": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "session_handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_path",
+        "handoff_dir",
+        "kb_prompt_table",
+        "required"
+      ],
+      "properties": {
+        "memory_path": { "type": "string" },
+        "handoff_dir": { "type": "string" },
+        "kb_prompt_table": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    },
+    "managed_modules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claude_settings",
+        "mcp"
+      ],
+      "properties": {
+        "claude_settings": { "type": "string" },
+        "mcp": { "type": "string" }
+      }
+    },
+    "knowledge_base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "db_path",
+        "seed_profile",
+        "web_port"
+      ],
+      "properties": {
+        "root": { "type": "string" },
+        "db_path": { "type": "string" },
+        "seed_profile": { "type": "string" },
+        "web_port": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

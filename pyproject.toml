@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "membase-4-claude"
+version = "0.1.0"
+description = "Bootstrap platform for Claude/Codex-driven development projects."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Remaker Digital, a DBA of VanDusen & Palmeter, LLC" }
+]
+dependencies = [
+  "Flask>=3.1,<4",
+]
+
+[project.scripts]
+membase = "cli.membase:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["cli*", "packages*"]
+
+[tool.setuptools.package-data]
+"packages.kb.runtime" = ["README.md", "templates/*.html", "static/*.css"]

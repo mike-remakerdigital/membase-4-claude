@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}History - Membase Knowledge DB{% endblock %}
+{% block content %}
+<h1>Change History</h1>
+
+{% if changes %}
+<table>
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>Table</th>
+      <th>ID</th>
+      <th>Title</th>
+      <th>Version</th>
+      <th>By</th>
+      <th>Reason</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in changes %}
+    <tr>
+      <td>{{ item.changed_at }}</td>
+      <td>{{ item.table_name }}</td>
+      <td>{{ item.record_id }}</td>
+      <td>{{ item.title }}</td>
+      <td>{{ item.version }}</td>
+      <td>{{ item.changed_by }}</td>
+      <td>{{ item.change_reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No change history recorded yet.</p>
+{% endif %}
+{% endblock %}
